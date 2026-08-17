@@ -63,8 +63,19 @@ export const DOWN_TICKS = 46;
 // Ball
 export const BALL_R = 4;
 export const GRAVITY = 980;
-export const GROUND_FRICTION = 0.9855 ** PACE; // per tick
+// Per tick, and raised to PACE so slowing the game does not also change how far
+// a ball travels. These used to be 0.9855 and 0.9985, which let a full power
+// shot roll 88% of the length of the pitch and a lob cross 93% of it in under
+// two seconds - the ball behaved as if the grass were ice. Now a full shot
+// covers a little over half the pitch and a lob about the same.
+export const GROUND_FRICTION = 0.9855 ** PACE;
 export const AIR_DRAG = 0.9985 ** PACE;
+
+// Rolling resistance: a flat amount of speed lost per second, on top of the
+// proportional friction above. The proportional term alone barely touches a
+// slow ball, which is why a gentle pass used to trickle on for six seconds.
+// This kills the long tail without changing how a firmly struck ball starts.
+export const ROLL_DRAG = 130;
 export const BOUNCE_Z = 0.56;
 export const BOUNCE_XY = 0.86;
 export const SPIN_DECAY = 0.985 ** PACE;
@@ -77,13 +88,26 @@ export const KEEPER_CONTROL_Z = 52;
 export const DRIBBLE_DIST = 13;
 export const DRIBBLE_LERP = 1 - (1 - 0.30) ** PACE;
 
-// Kicking
+// Kicking.
+//
+// Power is expressed as the distance the ball should travel, not as a speed.
+// A rolling ball loses a fixed fraction of its speed per tick, so distance is
+// speed * DT / (1 - friction): change the friction and every kick in the game
+// silently changes length. That is exactly what happened when the ball was made
+// heavier - passes fell short of their target, attacks died in midfield and the
+// scoreline went to nil. Ask for a distance and the friction can be tuned for
+// feel without touching the balance.
 export const CHARGE_MAX = 30; // ticks (0.5s) to reach full power
-export const KICK_MIN = 320;
-export const KICK_MAX = 780;
+export const KICK_MIN_DIST = 367; // a tap
+export const KICK_MAX_DIST = 896; // a full blooded shot
 export const LOB_CHARGE = 9; // from this charge on, the ball leaves the ground
 export const LOB_MAX = 320;
 export const KICK_COOLDOWN = 16;
+
+/** Launch speed for a ball that should come to rest after `dist` pixels. */
+export function speedForDistance(dist) {
+  return (dist * (1 - GROUND_FRICTION)) / DT;
+}
 
 // Aftertouch: bending the ball after you have kicked it
 export const AFTERTOUCH_TICKS = 70;
@@ -168,7 +192,7 @@ export const AI_LEVELS = {
   },
 };
 
-export const BTN = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16 };
+export const BTN = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16, SWITCH: 32 };
 
 export const TEAM_PRESETS = [
   { name: 'BLUE', shirt: '#2f6fd0', shorts: '#1b3f7a', trim: '#ffffff', skin: '#e8b98a' },

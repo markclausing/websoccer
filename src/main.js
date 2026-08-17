@@ -8,6 +8,7 @@ import { Renderer } from './render/renderer.js';
 import { LocalTransport, OnlineTransport } from './net/transport.js';
 import { Signal } from './net/signal.js';
 import { Chiptune } from './audio.js';
+import { TouchControls, isTouchDevice } from './touch.js';
 
 const canvas = document.getElementById('game');
 const menu = document.getElementById('menu');
@@ -25,6 +26,22 @@ let musicOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';
 const bindings = loadBindings();
 const devices = new InputDevices(bindings);
 devices.attach();
+
+const touch = new TouchControls();
+const onTouchDevice = isTouchDevice();
+if (onTouchDevice) {
+  touch.attach({
+    root: document.getElementById('touch'),
+    stick: document.getElementById('stick'),
+    knob: document.getElementById('knob'),
+    kick: document.getElementById('btnKick'),
+    swap: document.getElementById('btnSwap'),
+  });
+  devices.touch = touch;
+  // A keyboard table is no use to a thumb; the on-screen controls replace it.
+  document.getElementById('keysTable')?.classList.add('hidden');
+  document.getElementById('bindHint')?.classList.add('hidden');
+}
 
 const renderer = new Renderer(canvas);
 
@@ -53,6 +70,7 @@ function beginMatch(state, transport) {
   pauseBox.classList.add('hidden');
   netendBox.classList.add('hidden');
   canvas.focus();
+  if (onTouchDevice) touch.show(true);
   music.stop(); // title tune only: nobody wants a loop over ninety minutes
 }
 
@@ -85,6 +103,7 @@ function toMenu() {
   menu.classList.remove('hidden');
   pauseBox.classList.add('hidden');
   netendBox.classList.add('hidden');
+  touch.show(false);
   if (musicOn) music.start();
   setOnlineStatus('');
   roomCode.classList.add('hidden');

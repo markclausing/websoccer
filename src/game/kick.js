@@ -1,6 +1,6 @@
 import {
-  AFTERTOUCH_TICKS, BALL_R, CHARGE_MAX, KICK_COOLDOWN, KICK_MAX, KICK_MIN,
-  LOB_CHARGE, LOB_MAX, PLAYER_R,
+  AFTERTOUCH_TICKS, BALL_R, CHARGE_MAX, KICK_COOLDOWN, KICK_MAX_DIST, KICK_MIN_DIST,
+  LOB_CHARGE, LOB_MAX, PLAYER_R, speedForDistance,
 } from '../constants.js';
 import { clamp, norm } from '../util.js';
 import { flagOffside } from './offside.js';
@@ -47,7 +47,7 @@ export function kickBall(state, teamIdx, playerIdx, dx, dy, power, lift) {
 /** Turns the time the button was held into power + height. */
 export function chargeToShot(charge) {
   const t = clamp(charge / CHARGE_MAX, 0, 1);
-  const power = KICK_MIN + (KICK_MAX - KICK_MIN) * t;
+  const power = speedForDistance(KICK_MIN_DIST + (KICK_MAX_DIST - KICK_MIN_DIST) * t);
   const lift = charge <= LOB_CHARGE
     ? 0
     : LOB_MAX * ((charge - LOB_CHARGE) / (CHARGE_MAX - LOB_CHARGE));

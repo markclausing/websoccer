@@ -7,7 +7,7 @@ import { BTN } from './constants.js';
 // and turned into a key-to-bitmask lookup for reading input, which is the way
 // the game loop needs them.
 
-export const ACTIONS = ['up', 'down', 'left', 'right', 'fire'];
+export const ACTIONS = ['up', 'down', 'left', 'right', 'fire', 'switch'];
 
 export const ACTION_BIT = {
   up: BTN.UP,
@@ -15,6 +15,7 @@ export const ACTION_BIT = {
   left: BTN.LEFT,
   right: BTN.RIGHT,
   fire: BTN.FIRE,
+  switch: BTN.SWITCH,
 };
 
 export const ACTION_LABELS = {
@@ -23,28 +24,29 @@ export const ACTION_LABELS = {
   left: 'Left',
   right: 'Right',
   fire: 'Kick / slide',
+  switch: 'Switch player',
 };
 
 export const PRESETS = [
   {
     key: 'wasd',
     label: 'W A S D + Space',
-    bindings: { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space' },
+    bindings: { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space', switch: 'KeyQ' },
   },
   {
     key: 'arrows',
     label: 'Arrows + Enter',
-    bindings: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire: 'Enter' },
+    bindings: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire: 'Enter', switch: 'ShiftRight' },
   },
   {
     key: 'arrowsSpace',
     label: 'Arrows + Space',
-    bindings: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire: 'Space' },
+    bindings: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire: 'Space', switch: 'ControlRight' },
   },
   {
     key: 'ijkl',
     label: 'I J K L + Shift',
-    bindings: { up: 'KeyI', down: 'KeyK', left: 'KeyJ', right: 'KeyL', fire: 'ShiftRight' },
+    bindings: { up: 'KeyI', down: 'KeyK', left: 'KeyJ', right: 'KeyL', fire: 'ShiftRight', switch: 'KeyU' },
   },
 ];
 
@@ -145,6 +147,7 @@ export class InputDevices {
   constructor(bindings = loadBindings()) {
     this.down = new Set();
     this.enabled = true;
+    this.touch = null; // on-screen controls, when there are any
     this.setBindings(bindings);
 
     this._onKeyDown = (e) => {
@@ -194,7 +197,10 @@ export class InputDevices {
       const bit = map[code];
       if (bit) m |= bit;
     }
-    return m | this.gamepadMask(slot);
+    // The on-screen controls drive the first slot, which is the one every
+    // single player and online match uses.
+    const touch = slot === 0 && this.touch ? this.touch.mask : 0;
+    return m | touch | this.gamepadMask(slot);
   }
 
   gamepadMask(slot) {

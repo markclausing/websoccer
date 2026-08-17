@@ -7,7 +7,14 @@ html, body {
   color: #e8f2e8;
   font-family: "Courier New", ui-monospace, monospace;
   overflow: hidden;
+  /* No rubber banding, no pinch zoom, no text selection while you are playing. */
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
+
+#game { touch-action: none; }
 
 #wrap {
   position: relative;
@@ -220,6 +227,97 @@ button.primary:hover { background: #fff08a; }
 button:disabled { opacity: 0.45; cursor: default; }
 button:disabled:hover { background: #1c4a2a; }
 button.primary:disabled:hover { background: #ffe14d; }
+
+/* --- touch controls --- */
+
+#touch {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none; /* only the controls themselves take touches */
+  padding: 0 max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-bottom));
+}
+
+#stick, #touchButtons { pointer-events: auto; touch-action: none; }
+
+#stick {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 130px;
+  height: 130px;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+#knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(255, 225, 77, 0.75);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+#touchButtons {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+#touchButtons button {
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0;
+  border-width: 3px;
+}
+
+#btnKick {
+  width: 108px;
+  height: 108px;
+  font-size: 15px;
+  background: rgba(255, 225, 77, 0.85);
+  color: #12331d;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+#btnSwap {
+  width: 74px;
+  height: 74px;
+  background: rgba(28, 74, 42, 0.85);
+  color: #e8f2e8;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+#touchButtons button.pressed { filter: brightness(1.35); transform: scale(0.94); }
+
+/* Portrait on a phone is unplayable: the pitch ends up a few centimetres tall. */
+#rotate { display: none; }
+
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 40px;
+    text-align: center;
+    font-size: 20px;
+    line-height: 1.6;
+    color: #ffe14d;
+    background: #0a1a0f;
+  }
+}
 
 /* Generic and deliberately last: .overlay and .row set their own display with
    the same specificity, so this only wins by coming after them. Without it

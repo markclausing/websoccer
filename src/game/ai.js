@@ -2,6 +2,7 @@ import {
   AI_LEVELS, DT, FIELD, FIELD_H, FORMATION, GOAL_W, PEN_D, PEN_W,
 } from '../constants.js';
 import { clamp, dist, dist2, norm, randRange } from '../util.js';
+import { speedForDistance } from '../constants.js';
 import { advanceOf, ownGoalY, posFor, targetGoalY } from './state.js';
 import { holdTheLine } from './offside.js';
 
@@ -168,7 +169,7 @@ function ownerAction(state, teamIdx, i) {
       const tx = mate ? mate.x : FIELD.cx + randRange(state, -180, 180);
       const ty = mate ? mate.y : p.y + team.attackDir * FIELD_H * 0.4;
       const d = norm(tx - p.x, ty - p.y);
-      return { x: 0, y: 0, kick: { dx: d.x, dy: d.y, power: 700, lift: 300 } };
+      return { x: 0, y: 0, kick: { dx: d.x, dy: d.y, power: speedForDistance(804), lift: 300 } };
     }
     const away = norm(0, team.attackDir);
     return { x: away.x * 0.4, y: away.y };
@@ -186,7 +187,7 @@ function ownerAction(state, teamIdx, i) {
     if (skill.aimError) aimX += randRange(state, -skill.aimError, skill.aimError);
     const d = norm(aimX - p.x, goalY - p.y);
     const lift = dGoal > 170 ? randRange(state, 0, 90) : 0;
-    return { x: d.x, y: d.y, kick: { dx: d.x, dy: d.y, power: 760, lift } };
+    return { x: d.x, y: d.y, kick: { dx: d.x, dy: d.y, power: speedForDistance(873), lift } };
   }
 
   // Under pressure: pass.
@@ -201,7 +202,8 @@ function ownerAction(state, teamIdx, i) {
       }
       const d = norm(aimX - p.x, aimY - p.y);
       const dd = dist(p.x, p.y, mate.x, mate.y);
-      const power = clamp(dd * 2.1, 340, 720);
+      // Deliberately overhit: a pass played to the exact distance arrives dead.
+      const power = speedForDistance(clamp(dd * 2.4, 390, 830));
       return { x: d.x, y: d.y, kick: { dx: d.x, dy: d.y, power, lift: dd > 220 ? 180 : 0 } };
     }
   }

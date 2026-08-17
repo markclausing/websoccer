@@ -12,6 +12,8 @@ import { step } from '../src/game/sim.js';
 import { Signal } from '../src/net/signal.js';
 import { OnlineTransport } from '../src/net/transport.js';
 import { TRACK, noteFreq } from '../src/audio.js';
+import { TouchControls } from '../src/touch.js';
+import { BTN } from '../src/constants.js';
 
 const PORT = 5196;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -265,6 +267,45 @@ async function main() {
     const played = scheduledTones - beforeTones;
     if (played < TRACK.steps) throw new Error(`the sequencer only scheduled ${played} voices in a full loop`);
     console.log(`OK: title tune sequences (${voiced.length} notes per loop, ${played} voices scheduled)`);
+
+    // 1d. The on-screen controls: a thumb on the stick has to come out as the
+    // same bitmask a keyboard would produce.
+    const pad = () => {
+      const el = makeEl('', 'div');
+      el.style = {};
+      el.getBoundingClientRect = () => ({ left: 100, top: 100, width: 130, height: 130 });
+      el.setPointerCapture = () => {};
+      return el;
+    };
+    const stick = pad();
+    const knob = pad();
+    const kick = pad();
+    const swap = pad();
+    const controls = new TouchControls();
+    controls.attach({ root: pad(), stick, knob, kick, swap });
+
+    const point = (el, ev, x, y) => {
+      for (const fn of el.handlers[ev] || []) {
+        fn({ pointerId: 1, clientX: x, clientY: y, preventDefault: () => {} });
+      }
+    };
+    // Centre of the stick is (165, 165); push the thumb straight up.
+    point(stick, 'pointerdown', 165, 105);
+    if (!(controls.mask & BTN.UP) || (controls.mask & BTN.DOWN)) {
+      throw new Error(`pushing the stick up gave mask ${controls.mask}`);
+    }
+    point(stick, 'pointermove', 225, 165); // now straight right
+    if (!(controls.mask & BTN.RIGHT) || (controls.mask & BTN.UP)) {
+      throw new Error(`pushing the stick right gave mask ${controls.mask}`);
+    }
+    point(stick, 'pointerup', 225, 165);
+    if (controls.mask !== 0) throw new Error(`letting go left mask ${controls.mask}`);
+    point(kick, 'pointerdown', 0, 0);
+    if (!(controls.mask & BTN.FIRE)) throw new Error('the kick button does not press');
+    point(kick, 'pointerup', 0, 0);
+    point(swap, 'pointerdown', 0, 0);
+    if (!(controls.mask & BTN.SWITCH)) throw new Error('the switch button does not press');
+    console.log('OK: on-screen stick and buttons produce the same input as the keyboard');
 
     // 2. Online: pick the mode and open a match.
     click(modeButtons[2]);

@@ -4,7 +4,7 @@ import {
   FIELD, GOAL_CELEBRATION_TICKS, GOAL_DEPTH, GOAL_W, GRAVITY, GROUND_FRICTION,
   HALFTIME_TICKS, KEEPER_CONTROL_R, KEEPER_CONTROL_Z, KEEPER_SPEED, PEN_D, PEN_W,
   KEEPER_HOLD_MAX, KEEPER_HOLD_TICKS, PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED,
-  PLAYER_SPEED_BALL, PROTECT_TICKS,
+  PLAYER_SPEED_BALL, PROTECT_TICKS, ROLL_DRAG,
   RESTART_TICKS,
   SIX_D, SLIDE_COOLDOWN, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY, WORLD_H, WORLD_W,
 } from '../constants.js';
@@ -222,7 +222,12 @@ function updatePlayers(state, inputs, frozen) {
     }
   }
   for (let t = 0; t < 2; t++) {
-    if (state.teams[t].human) updateControlledPlayer(state, t);
+    const team = state.teams[t];
+    if (!team.human) continue;
+    const mask = inputs[t] | 0;
+    // On the press, not while held, so leaning on it does not chase the ball.
+    const asked = (mask & BTN.SWITCH) !== 0 && (team.prevMask & BTN.SWITCH) === 0;
+    updateControlledPlayer(state, t, asked);
   }
 
   // Phase 1: decide intents (reads the shared snapshot).
@@ -283,7 +288,7 @@ function updatePlayers(state, inputs, frozen) {
 }
 
 /** Auto-switch: you always control the player on the ball, otherwise the nearest one. */
-function updateControlledPlayer(state, t) {
+function updateControlledPlayer(state, t, forced = false) {
   const team = state.teams[t];
   const b = state.ball;
 
@@ -293,7 +298,9 @@ function updateControlledPlayer(state, t) {
   }
 
   const cur = team.players[team.controlled];
-  if (cur && cur.down === 0 && (cur.slide > 0 || cur.charging)) return;
+  // Asking for the nearest player overrides both the hysteresis below and the
+  // rule that you keep hold of someone mid-slide.
+  if (!forced && cur && cur.down === 0 && (cur.slide > 0 || cur.charging)) return;
 
   let best = team.controlled;
   let bestD = Infinity;
@@ -312,7 +319,7 @@ function updateControlledPlayer(state, t) {
   }
 
   // Hysteresis: do not switch over a negligible difference (stops the flip-flopping).
-  if (best !== team.controlled && cur && cur.down === 0) {
+  if (!forced && best !== team.controlled && cur && cur.down === 0) {
     const curD = dist2(b.x, b.y, cur.x, cur.y);
     if (curD - bestD < 18 * 18) return;
   }
@@ -520,6 +527,17 @@ function updateBall(state, inputs) {
   b.vx *= damp;
   b.vy *= damp;
 
+  // Rolling resistance on the ground: a flat amount off the speed, which is
+  // what stops a slow ball rather than letting it trickle across the pitch.
+  if (!airborne) {
+    const speed = len(b.vx, b.vy);
+    if (speed > 0) {
+      const slowed = Math.max(0, speed - ROLL_DRAG * DT);
+      b.vx *= slowed / speed;
+      b.vy *= slowed / speed;
+    }
+  }
+
   // Spin: slowly rotates the velocity vector, which is what bends the ball.
   if (Math.abs(b.spin) > 1e-4) {
     const c = Math.cos(b.spin * DT);
@@ -655,11 +673,11 @@ function checkOutOfPlay(state) {
     // Goal kick for the defending side
     const x = FIELD.cx + (b.x < FIELD.cx ? -58 : 58);
     const y = topEnd ? FIELD.top + SIX_D : FIELD.bottom - SIX_D;
-    setRestart(state, x, y, defender, 'GOAL KICK');
+    setRestart(state, x, y, defender, 'GOAL KICK', 0); // the keeper takes it
   }
 }
 
-function setRestart(state, x, y, teamIdx, message) {
+function setRestart(state, x, y, teamIdx, message, forcedTaker = null) {
   const b = state.ball;
   b.x = x;
   b.y = y;
@@ -679,11 +697,12 @@ function setRestart(state, x, y, teamIdx, message) {
   state.restartTeam = teamIdx;
   state.message = message;
 
-  // Nearest outfield player takes it.
+  // Nearest outfield player takes it - unless the restart names someone, which
+  // a goal kick does: that is the keeper's to take.
   const team = state.teams[teamIdx];
-  let takerIdx = 1;
+  let takerIdx = forcedTaker === null ? 1 : forcedTaker;
   let bestD = Infinity;
-  for (let i = 1; i < team.players.length; i++) {
+  for (let i = 1; forcedTaker === null && i < team.players.length; i++) {
     const p = team.players[i];
     if (p.down > 0) continue;
     const d = dist2(x, y, p.x, p.y);

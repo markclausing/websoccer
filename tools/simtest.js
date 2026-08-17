@@ -110,33 +110,33 @@ const levels = {};
 for (const level of ['hard', 'normal', 'easy']) {
   const r = ladder(level);
   levels[level] = r;
-  console.log(`  ${level.padEnd(6)} ${r.territory.toFixed(0)}% territory, scored ${r.mine} conceded ${r.theirs}`);
+  console.log(`  ${level.padEnd(6)} ${r.territory.toFixed(0)}% territory, scored ${r.mine} conceded ${r.theirs} (${(r.theirs / Math.max(r.mine, 1)).toFixed(1)}x)`);
 }
 
+// The telling number is how badly a level loses, not how much of the pitch it
+// holds: a weaker side can keep the ball in midfield all afternoon and still be
+// picked apart. Territory only separates EASY, so it is used only there.
+//
 // Relative bounds, not absolute ones. Anything that changes the game as a whole -
 // the pace, the shape of the defence - moves all three levels together, and
 // absolute thresholds then fail for reasons that have nothing to do with the
 // difficulty ladder. What has to hold is the ordering and the gaps.
-if (levels.hard.territory < 45) {
-  console.error(`FAIL: HARD does not hold its own against itself (${levels.hard.territory.toFixed(0)}% territory)`);
+const ratio = (r) => r.theirs / Math.max(r.mine, 1);
+
+if (ratio(levels.hard) > 1.8) {
+  console.error(`FAIL: HARD does not hold its own against itself (${levels.hard.mine}-${levels.hard.theirs})`);
   process.exit(1);
 }
-if (levels.normal.territory > levels.hard.territory - 2) {
-  console.error(`FAIL: NORMAL is not below HARD (${levels.normal.territory.toFixed(0)}% vs ${levels.hard.territory.toFixed(0)}% territory)`);
+if (ratio(levels.normal) < 1.8) {
+  console.error(`FAIL: NORMAL is not clearly losing to HARD (${levels.normal.mine}-${levels.normal.theirs})`);
   process.exit(1);
 }
-if (levels.easy.territory > levels.normal.territory - 5) {
-  console.error(`FAIL: EASY is not below NORMAL (${levels.easy.territory.toFixed(0)}% vs ${levels.normal.territory.toFixed(0)}% territory)`);
-  process.exit(1);
-}
-// Territory alone undersells it: an easier side can hold the ball in midfield
-// and still be picked apart, so check the scoreline too.
-if (levels.normal.theirs <= levels.normal.mine) {
-  console.error(`FAIL: NORMAL is not losing to HARD (${levels.normal.mine}-${levels.normal.theirs})`);
-  process.exit(1);
-}
-if (levels.easy.theirs < levels.easy.mine * 2) {
+if (ratio(levels.easy) < 6) {
   console.error(`FAIL: EASY is not losing heavily enough to HARD (${levels.easy.mine}-${levels.easy.theirs})`);
+  process.exit(1);
+}
+if (levels.easy.territory > levels.hard.territory - 8) {
+  console.error(`FAIL: EASY is not pinned back (${levels.easy.territory.toFixed(0)}% vs ${levels.hard.territory.toFixed(0)}% territory)`);
   process.exit(1);
 }
 console.log('OK: EASY and NORMAL are measurably weaker than HARD, on both territory and the scoreline');
@@ -190,6 +190,42 @@ function offsidePass(strikerY, offside = true) {
   }
   return 'nothing happened';
 }
+
+// --- Goal kick ----------------------------------------------------------------
+//
+// Staged, because a CPU match can run for minutes without the ball crossing a
+// goal line. Team 0 attacks upwards, so a ball it puts behind the top line is a
+// goal kick to team 1 - and the keeper takes those.
+
+function goalKickTaker() {
+  const state = createMatch({ seed: 5, halfSeconds: 120, humans: [false, false] });
+  state.phase = 'play';
+  state.phaseTimer = 0;
+  state.ball.protectedFor = null;
+  state.ball.x = FIELD.cx + 200; // wide of the goal, so it is not a goal
+  state.ball.y = FIELD.top - 5;
+  state.ball.vy = -50;
+  state.ball.lastTouch = { team: 0, idx: 9 };
+  step(state, [0, 0]);
+  return {
+    message: state.message,
+    team: state.restartTeam,
+    controlled: state.teams[state.restartTeam].controlled,
+  };
+}
+
+const gk = goalKickTaker();
+console.log('');
+console.log(`Goal kick: ${gk.message || 'not awarded'}, taken by player ${gk.controlled} of team ${gk.team}`);
+if (gk.message !== 'GOAL KICK') {
+  console.error(`FAIL: a ball put behind for a goal kick gave "${gk.message}"`);
+  process.exit(1);
+}
+if (gk.controlled !== 0) {
+  console.error(`FAIL: the goal kick went to player ${gk.controlled} instead of the keeper`);
+  process.exit(1);
+}
+console.log('OK: goal kicks are taken by the keeper');
 
 console.log('');
 const beyond = offsidePass(200);

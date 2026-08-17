@@ -42,7 +42,13 @@ the simulation has to stay deterministic.
 | ------------ | --------------- | -------------- |
 | Move         | `W A S D`       | Arrow keys     |
 | Kick / slide | `Space`         | `Enter`        |
+| Switch player | `Q`            | `R Shift`      |
 | Pause        | `Esc`           | (not online)   |
+
+On a **phone or tablet** you get a thumbstick and two buttons on screen instead,
+and the game asks you to turn the device sideways — a pitch a few centimetres
+tall is no use to anyone. The on-screen controls produce the same input as the
+keyboard, so nothing else in the game knows the difference.
 
 Those are only the defaults: **every key can be changed in the menu**. Click a key
 and press the one you want, or pick a preset — arrows and space together, say,
@@ -63,7 +69,13 @@ How it feels:
 - **Aftertouch**: keep steering *after* the kick. Sideways bends the ball, along
   the ball's direction lifts it, against it makes it dip.
 - The button **without the ball** is a slide tackle.
-- You automatically control whoever is nearest the ball.
+- You automatically control whoever is nearest the ball. The switch button asks
+  for the nearest man outright, which is worth knowing about but rarely needed:
+  measured over a match, the automatic pick already has you on the nearest player
+  97% of the time the other side has the ball.
+- A kicked ball now meets some resistance. A firm shot used to roll on for seven
+  and a half seconds and cover 88% of the pitch; it now settles in two and a half
+  and covers a little over half.
 
 There are goals, throw-ins, corners, goal kicks, half time and a final whistle,
 and **offside** is called (you can switch it off in the menu). No fouls: slide

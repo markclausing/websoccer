@@ -2,13 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>WebSoccer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="wrap">
     <canvas id="game" width="900" height="620" tabindex="0"></canvas>
+
+    <div id="touch" class="hidden">
+      <div id="stick"><div id="knob"></div></div>
+      <div id="touchButtons">
+        <button id="btnSwap" type="button">SWITCH</button>
+        <button id="btnKick" type="button">KICK</button>
+      </div>
+    </div>
+
+    <div id="rotate">Turn your phone sideways to play</div>
 
     <div id="menu" class="overlay">
       <div class="panel">
@@ -58,7 +68,7 @@
           </select>
         </div>
 
-        <table class="keys">
+        <table class="keys" id="keysTable">
           <thead>
             <tr><th></th><th>Player 1 (blue)</th><th id="p2head">Player 2 (red)</th></tr>
           </thead>
