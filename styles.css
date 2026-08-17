@@ -44,8 +44,10 @@ html, body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(4, 14, 8, 0.82);
-  backdrop-filter: blur(2px);
+  /* Lighter than it was: there is a picture behind this now, and it should be
+     visible around the panel. */
+  background: rgba(4, 14, 8, 0.55);
+  backdrop-filter: blur(1px);
   z-index: 10;
 }
 

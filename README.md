@@ -121,6 +121,16 @@ timing in ticks stay exactly where they were, so nothing plays differently, it
 just gives you more time on the ball. Set it back to 1 if you want the original
 tempo.
 
+## The title screen
+
+The picture behind the menu is drawn, not loaded: a night match seen from the top
+of the stand, painted into a 240 by 166 offscreen canvas and blown up with
+smoothing switched off, which is what keeps the pixels square instead of turning
+it into a blurred illustration. Floodlight pylons with their glow spilling onto
+the sky, a crowd of single pixels placed by a seeded generator so the same faces
+sit in the same seats every time, and a pitch tapering away towards the goal.
+It lives in `src/render/titlescreen.js`.
+
 ## The title tune
 
 There is no audio file. The tune on the menu is generated as you listen, with the

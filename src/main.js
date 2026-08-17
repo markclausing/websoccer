@@ -5,6 +5,7 @@ import {
 import { createMatch } from './game/state.js';
 import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
+import { drawTitleScreen } from './render/titlescreen.js';
 import { LocalTransport, OnlineTransport } from './net/transport.js';
 import { Signal } from './net/signal.js';
 import { AudioEngine, Chiptune, Sfx } from './audio.js';
@@ -155,7 +156,12 @@ function frame(now) {
   const elapsed = Math.min(0.25, (now - game.last) / 1000);
   game.last = now;
 
-  if (!game.state) return;
+  if (!game.state) {
+    // Nothing to simulate yet, so the canvas shows the title picture instead of
+    // an empty green field behind the menu.
+    drawTitleScreen(renderer.ctx, canvas.width, canvas.height);
+    return;
+  }
 
   if (!game.paused) {
     game.acc += elapsed;
