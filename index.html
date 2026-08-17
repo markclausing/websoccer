@@ -77,6 +77,8 @@
           </select>
         </div>
 
+        <details id="controlsBox">
+        <summary>Controls</summary>
         <table class="keys" id="keysTable">
           <thead>
             <tr><th></th><th>Player 1 (blue)</th><th id="p2head">Player 2 (red)</th></tr>
@@ -91,11 +93,14 @@
           </tfoot>
         </table>
         <p id="bindHint" class="status">Click a key to change it.</p>
+        </details>
 
         <p id="iosHint" class="fineprint hidden"></p>
 
         <div id="localSetup">
 
+          <details>
+          <summary>How it plays</summary>
           <ul class="hints">
             <li><b>Tap</b> for a pass along the ground, <b>hold</b> for a harder or lofted ball.</li>
             <li><b>Aftertouch:</b> keep steering after the shot to bend the ball; forwards lifts it, backwards makes it dip.</li>
@@ -104,8 +109,8 @@
             <li>Gamepads work too (controller 1 &rarr; blue, controller 2 &rarr; red).</li>
             <li><b>Esc</b> pauses.</li>
           </ul>
+          </details>
 
-          <button id="start" class="primary">KICK OFF</button>
         </div>
 
         <div id="onlineSetup" class="hidden">
@@ -118,8 +123,6 @@
           <div id="roomCode" class="code hidden"></div>
           <p id="onlineStatus" class="status"></p>
 
-          <button id="host" class="primary">OPEN A NEW MATCH</button>
-
           <div class="joinrow">
             <input id="joinCode" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false">
             <button id="join">JOIN</button>
@@ -129,6 +132,10 @@
             Works between two browser tabs, between computers on the same network,
             and across the internet once you host <code>server/relay.js</code> somewhere.
           </p>
+        </div>
+        <div class="panelFooter">
+          <button id="start" class="primary">KICK OFF</button>
+          <button id="host" class="primary hidden">OPEN A NEW MATCH</button>
         </div>
       </div>
     </div>

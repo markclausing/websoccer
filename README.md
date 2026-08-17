@@ -14,7 +14,7 @@ receives them.
 modes run straight from the page. Online multiplayer needs a relay server, which
 static hosting cannot provide; see [Playing online](#playing-online).
 
-![A blue attack breaking into the red penalty area: the keeper has come off his line, defenders are closing in, and the radar in the top right shows the rest of the pitch](docs/screenshots/gameplay.png)
+![A blue attack breaking into the red penalty area, the keeper off his line and defenders closing in, with the radar top right](docs/screenshots/gameplay.png)
 
 ## Getting started
 
@@ -34,7 +34,7 @@ internet, troubleshooting) see [INSTALL.md](INSTALL.md).
 Want to help build it? Read [CONTRIBUTING.md](CONTRIBUTING.md) — mostly about why
 the simulation has to stay deterministic.
 
-![The start menu: mode selector for 1 player, 2 players and online, a match length dropdown, the control scheme, a KICK OFF button, and below it the online panel with OPEN A NEW MATCH and a field to enter a room code](docs/screenshots/menu.png)
+![The start menu: mode, CPU skill, sound and offside switches, match length, and a KICK OFF button, with the controls and the tips folded away](docs/screenshots/menu.png)
 
 ## Controls
 
@@ -45,7 +45,18 @@ the simulation has to stay deterministic.
 | Switch player | `Q`            | `R Shift`      |
 | Pause        | `Esc`           | (not online)   |
 
-### Fullscreen on a phone
+### On a phone
+
+You get a thumbstick and two buttons on screen instead, and the game asks you to
+turn the device sideways — a pitch a few centimetres tall is no use to anyone.
+The on-screen controls produce the same input as the keyboard, so nothing else in
+the game knows the difference.
+
+![The menu on a phone held sideways: the same options, compacted, with the kick off button pinned to the bottom](docs/screenshots/mobile-menu.png)
+
+![A match on a phone, with a thumbstick bottom left and the kick and switch buttons bottom right](docs/screenshots/mobile.png)
+
+#### Fullscreen
 
 On Android the game takes the whole screen when you kick off, address bar and
 all. **Safari on iPhone has no fullscreen for a web page** — no page can hide
@@ -54,14 +65,9 @@ opens as its own app with nothing around it. The menu says so on an iPhone that
 has not installed it yet. There is a web manifest and a set of icons for exactly
 this; `node tools/make-icons.js` regenerates them.
 
-### Controls
+### Changing the keys
 
-On a **phone or tablet** you get a thumbstick and two buttons on screen instead,
-and the game asks you to turn the device sideways — a pitch a few centimetres
-tall is no use to anyone. The on-screen controls produce the same input as the
-keyboard, so nothing else in the game knows the difference.
-
-Those are only the defaults: **every key can be changed in the menu**. Click a key
+Those defaults are only defaults: **every key can be changed in the menu**. Click a key
 and press the one you want, or pick a preset — arrows and space together, say,
 which is a combination the old fixed layout could not give you. Your choice is
 remembered in the browser.
@@ -153,9 +159,6 @@ Your own AI team-mates always play at full strength — handicapping them would
 make the game harder for you, not easier. The setting only ever applies to a CPU
 team, and `tools/simtest.js` checks that the ladder still holds.
 
-![The full time screen after a match, showing the final score across the pitch and the line "Press ENTER for the menu"](docs/screenshots/full-time.png)
-
-The CPU does not hold back.
 
 ## Playing online
 
@@ -270,6 +273,15 @@ Keep to these rules when extending things, or determinism goes out of the window
 - no `Date.now()` or `performance.now()` in the simulation;
 - no iteration over `Set`/`Object.keys()` whose order can vary;
 - rendering must never write to `state`.
+
+## Screenshots
+
+The pictures above are taken by `node tools/screenshot.js`, with the local server
+running. It starts Chrome headless and drives it over the DevTools protocol,
+which node can speak with its built-in WebSocket - no puppeteer, no dependency.
+It clicks through the menu, holds a key so the human side actually plays, and
+waits for the ball to reach a goalmouth before pressing the shutter, so what you
+see is the real page rendering a real match rather than a mock-up.
 
 ## Tests
 

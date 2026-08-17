@@ -237,10 +237,19 @@ button.primary:disabled:hover { background: #ffe14d; }
 /* A phone held sideways is about 400px tall. The panel scrolls, but a button
    you have to scroll to find is a button nobody presses, so the primary action
    sticks to the bottom of it and everything else gives up its spare room. */
-button.primary {
+/* Sticky on the footer rather than on the button: a sticky element can never
+   leave its own container, and inside the mode panels the button was being
+   clamped to a box that had already scrolled off. As a direct child of the
+   panel it has the whole scroll length to work with. */
+.panelFooter {
   position: sticky;
-  bottom: -1px;
+  bottom: 0;
   z-index: 2;
+  padding-top: 4px;
+  background: #12331d;
+  /* Its own dark edge, so the content scrolling underneath does not appear to
+     touch it, and a shadow to lift it off the list. */
+  box-shadow: 0 -12px 16px -8px rgba(18, 51, 29, 0.95);
 }
 
 @media (max-height: 560px) {
@@ -260,6 +269,26 @@ button.primary {
 @media (pointer: coarse) {
   .hints { display: none; }
 }
+
+details {
+  margin: 14px 0 4px;
+  border-top: 1px solid #234c2f;
+  border-bottom: 1px solid #234c2f;
+}
+
+summary {
+  padding: 9px 2px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #9fc7a8;
+  cursor: pointer;
+}
+
+summary:hover { color: #ffe14d; }
+
+details[open] summary { color: #ffe14d; }
+
+details .keys { margin-top: 0; }
 
 /* --- touch controls --- */
 

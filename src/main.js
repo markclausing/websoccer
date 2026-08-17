@@ -385,6 +385,10 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
     document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b === btn));
     localSetup.classList.toggle('hidden', mode === 'online');
     onlineSetup.classList.toggle('hidden', mode !== 'online');
+    // The two primary buttons live in the shared footer, so they are swapped
+    // here rather than by hiding the panel around them.
+    document.getElementById('start').classList.toggle('hidden', mode === 'online');
+    document.getElementById('host').classList.toggle('hidden', mode !== 'online');
     renderBindings();
     // Only worth choosing when there is a CPU to play against.
     difficultyRow.classList.toggle('hidden', mode !== '1');
