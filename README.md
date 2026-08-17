@@ -10,6 +10,8 @@ and **online against each other** using a room code.
 No dependencies, no build step. HTML, CSS and JavaScript exactly as the browser
 receives them.
 
+![A blue attack breaking into the red penalty area: the keeper has come off his line, defenders are closing in, and the radar in the top right shows the rest of the pitch](docs/screenshots/gameplay.png)
+
 ## Getting started
 
 ```bash
@@ -27,6 +29,8 @@ internet, troubleshooting) see [INSTALL.md](INSTALL.md).
 
 Want to help build it? Read [CONTRIBUTING.md](CONTRIBUTING.md) — mostly about why
 the simulation has to stay deterministic.
+
+![The start menu: mode selector for 1 player, 2 players and online, a match length dropdown, the control scheme, a KICK OFF button, and below it the online panel with OPEN A NEW MATCH and a field to enter a room code](docs/screenshots/menu.png)
 
 ## Controls
 
@@ -50,6 +54,10 @@ How it feels:
 
 There are goals, throw-ins, corners, goal kicks, half time and a final whistle.
 No offside and no fouls — deliberately, just like the originals.
+
+![The full time screen after a match, showing the final score across the pitch and the line "Press ENTER for the menu"](docs/screenshots/full-time.png)
+
+The CPU does not hold back.
 
 ## Playing online
 
