@@ -1,5 +1,7 @@
 import { FRAME_TIME } from './constants.js';
-import { InputDevices } from './input.js';
+import {
+  ACTIONS, ACTION_LABELS, InputDevices, PRESETS, findConflicts, keyLabel, loadBindings, saveBindings,
+} from './input.js';
 import { createMatch } from './game/state.js';
 import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
@@ -16,7 +18,8 @@ const onlineStatus = document.getElementById('onlineStatus');
 const roomCode = document.getElementById('roomCode');
 const difficultyRow = document.getElementById('difficultyRow');
 
-const devices = new InputDevices();
+const bindings = loadBindings();
+const devices = new InputDevices(bindings);
 devices.attach();
 
 const renderer = new Renderer(canvas);
@@ -162,6 +165,119 @@ function checkNetEnd() {
   netendBox.classList.remove('hidden');
 }
 
+// --- Controls -----------------------------------------------------------------
+
+const keysBody = document.getElementById('keysBody');
+const bindHint = document.getElementById('bindHint');
+let listeningFor = null; // {slot, action} while waiting for a key to be pressed
+
+function setBindHint(text, warn = false) {
+  bindHint.textContent = text;
+  bindHint.classList.toggle('warn', warn);
+}
+
+function renderBindings() {
+  const clashing = new Set();
+  for (const clash of findConflicts(bindings)) {
+    clashing.add(`${clash.a.slot}:${clash.a.action}`);
+    clashing.add(`${clash.b.slot}:${clash.b.action}`);
+  }
+
+  keysBody.innerHTML = '';
+  for (const action of ACTIONS) {
+    const row = document.createElement('tr');
+    const name = document.createElement('td');
+    name.textContent = ACTION_LABELS[action];
+    row.appendChild(name);
+
+    for (let slot = 0; slot < 2; slot++) {
+      const cell = document.createElement('td');
+      const button = document.createElement('button');
+      const id = `${slot}:${action}`;
+      button.className = 'bind';
+      button.dataset.bind = id;
+      button.textContent = listeningFor && listeningFor.slot === slot && listeningFor.action === action
+        ? 'press a key'
+        : keyLabel(bindings[slot][action]);
+      if (listeningFor && button.textContent === 'press a key') button.classList.add('listening');
+      if (clashing.has(id)) button.classList.add('clash');
+      button.addEventListener('click', () => startListening(slot, action));
+      cell.appendChild(button);
+      row.appendChild(cell);
+    }
+    keysBody.appendChild(row);
+  }
+
+  for (const select of document.querySelectorAll('[data-preset]')) {
+    const slot = Number(select.dataset.preset);
+    const current = PRESETS.find((p) => ACTIONS.every((a) => p.bindings[a] === bindings[slot][a]));
+    select.innerHTML = '';
+    for (const preset of PRESETS) {
+      const option = document.createElement('option');
+      option.value = preset.key;
+      option.textContent = preset.label;
+      if (current && current.key === preset.key) option.selected = true;
+      select.appendChild(option);
+    }
+    if (!current) {
+      const option = document.createElement('option');
+      option.value = 'custom';
+      option.textContent = 'Custom';
+      option.selected = true;
+      select.appendChild(option);
+    }
+  }
+
+  if (clashing.size) {
+    setBindHint('Those keys overlap. Fine for one player, but two players need separate keys.', true);
+  } else if (!listeningFor) {
+    setBindHint('Click a key to change it.');
+  }
+}
+
+function startListening(slot, action) {
+  listeningFor = { slot, action };
+  setBindHint('Press the key you want to use, or Escape to cancel.');
+  renderBindings();
+}
+
+function applyKey(code) {
+  const { slot, action } = listeningFor;
+  listeningFor = null;
+  bindings[slot][action] = code;
+  devices.setBindings(bindings);
+  devices.down.clear(); // the key we just captured never gets a keyup we care about
+  saveBindings(bindings);
+  renderBindings();
+}
+
+// Capture phase, and always prevented: otherwise pressing Space would activate
+// the button that is still focused and immediately ask for another key.
+window.addEventListener('keydown', (e) => {
+  if (!listeningFor) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.code === 'Escape') {
+    listeningFor = null;
+    renderBindings();
+    return;
+  }
+  applyKey(e.code);
+}, true);
+
+for (const select of document.querySelectorAll('[data-preset]')) {
+  select.addEventListener('change', () => {
+    const preset = PRESETS.find((p) => p.key === select.value);
+    if (!preset) return;
+    bindings[Number(select.dataset.preset)] = { ...preset.bindings };
+    devices.setBindings(bindings);
+    saveBindings(bindings);
+    renderBindings();
+  });
+}
+
+renderBindings();
+
 // --- Menu -------------------------------------------------------------------
 
 let mode = '1';
@@ -188,6 +304,7 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
     document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b === btn));
     localSetup.classList.toggle('hidden', mode === 'online');
     onlineSetup.classList.toggle('hidden', mode !== 'online');
+    renderBindings();
     // Only worth choosing when there is a CPU to play against.
     difficultyRow.classList.toggle('hidden', mode !== '1');
 
@@ -203,7 +320,13 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
 });
 
 document.getElementById('start').addEventListener('click', () => {
-  startLocal({ players: Number(mode), halfSeconds: halfSeconds() });
+  const players = Number(mode);
+  // Sharing keys is fine for one player, impossible for two.
+  if (players === 2 && findConflicts(bindings).length) {
+    setBindHint('Both players are using the same keys. Give them separate ones first.', true);
+    return;
+  }
+  startLocal({ players, halfSeconds: halfSeconds() });
 });
 
 document.getElementById('resume').addEventListener('click', () => {

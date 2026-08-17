@@ -53,13 +53,18 @@
         <div id="localSetup">
           <table class="keys">
             <thead>
-              <tr><th></th><th>Player 1 (blue)</th><th>Player 2 (red)</th></tr>
+              <tr><th></th><th>Player 1 (blue)</th><th id="p2head">Player 2 (red)</th></tr>
             </thead>
-            <tbody>
-              <tr><td>Move</td><td>W A S D</td><td>Arrow keys</td></tr>
-              <tr><td>Kick / slide</td><td>Space</td><td>Enter</td></tr>
-            </tbody>
+            <tbody id="keysBody"></tbody>
+            <tfoot>
+              <tr>
+                <td>Presets</td>
+                <td><select data-preset="0" class="preset"></select></td>
+                <td><select data-preset="1" class="preset"></select></td>
+              </tr>
+            </tfoot>
           </table>
+          <p id="bindHint" class="status">Click a key to change it.</p>
 
           <ul class="hints">
             <li><b>Tap</b> for a pass along the ground, <b>hold</b> for a harder or lofted ball.</li>

@@ -34,23 +34,33 @@ const ctx = new Proxy({}, {
   set: () => true,
 });
 
-function makeEl(id = '') {
+function makeEl(id = '', tag = 'div') {
   const classes = new Set();
-  return {
+  const el = {
     id,
+    tagName: tag,
     width: 900,
     height: 620,
     value: '120',
     textContent: '',
     disabled: false,
+    selected: false,
+    className: '',
     dataset: {},
+    children: [],
+    handlers: {},
     classList: {
       add: (c) => classes.add(c),
       remove: (c) => classes.delete(c),
       toggle: (c, on) => (on === undefined ? (classes.has(c) ? classes.delete(c) : classes.add(c)) : (on ? classes.add(c) : classes.delete(c))),
       contains: (c) => classes.has(c),
     },
-    addEventListener: (ev, fn) => {
+    appendChild(child) {
+      this.children.push(child);
+      return child;
+    },
+    addEventListener(ev, fn) {
+      (this.handlers[ev] ||= []).push(fn);
       const key = `${id}:${ev}`;
       if (!listeners.has(key)) listeners.set(key, []);
       listeners.get(key).push(fn);
@@ -59,6 +69,16 @@ function makeEl(id = '') {
     focus: () => {},
     querySelectorAll: () => [],
   };
+  // Assigning innerHTML = '' is how the real code clears a table body.
+  let html = '';
+  Object.defineProperty(el, 'innerHTML', {
+    get: () => html,
+    set(v) {
+      html = v;
+      if (v === '') el.children.length = 0;
+    },
+  });
+  return el;
 }
 
 const els = new Map();
@@ -73,10 +93,30 @@ const modeButtons = ['1', '2', 'online'].map((m) => {
   return b;
 });
 
+const presetSelects = ['0', '1'].map((slot) => {
+  const b = makeEl(`preset-${slot}`, 'select');
+  b.dataset.preset = slot;
+  return b;
+});
+
+// Just enough localStorage for the bindings to be saved and read back.
+const store = new Map();
+Object.defineProperty(global, 'localStorage', {
+  value: {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  },
+  configurable: true,
+});
+
 global.document = {
-  createElement: () => makeEl(),
+  createElement: (tag) => makeEl('', tag),
   getElementById: el,
-  querySelectorAll: (sel) => (sel === '[data-mode]' ? modeButtons : []),
+  querySelectorAll: (sel) => {
+    if (sel === '[data-mode]') return modeButtons;
+    if (sel === '[data-preset]') return presetSelects;
+    return [];
+  },
 };
 global.window = { addEventListener: addListener };
 Object.defineProperty(global, 'navigator', {
@@ -93,6 +133,13 @@ global.requestAnimationFrame = (cb) => { rafCb = cb; return 1; };
 
 function click(element) {
   for (const fn of listeners.get(`${element.id}:click`) || []) fn();
+}
+
+/** Every window keydown listener sees the key, exactly as in a browser. */
+function press(code) {
+  for (const fn of listeners.get('keydown') || []) {
+    fn({ code, preventDefault: () => {}, stopPropagation: () => {} });
+  }
 }
 
 /** One display frame of the fake browser. */
@@ -146,6 +193,21 @@ async function main() {
 
     click(el('quit'));
     if (game.state) throw new Error('returning to the menu does not work');
+
+    // 1b. Rebinding a key: click the binding, press a key, see it take.
+    const upRow = el('keysBody').children[0];
+    const p1Up = upRow.children[1].children[0];
+    if (p1Up.textContent !== 'W') throw new Error(`player 1 up should start on W, not ${p1Up.textContent}`);
+    p1Up.handlers.click[0]();
+    press('ArrowUp');
+    const rebound = el('keysBody').children[0].children[1].children[0];
+    if (rebound.textContent !== '↑') {
+      throw new Error(`rebinding did not take: player 1 up shows ${rebound.textContent}`);
+    }
+    if (!(store.get('websoccer.bindings') || '').includes('ArrowUp')) {
+      throw new Error('the new binding was not saved');
+    }
+    console.log('OK: a key can be rebound, and it is remembered');
 
     // 2. Online: pick the mode and open a match.
     click(modeButtons[2]);

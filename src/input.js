@@ -2,38 +2,171 @@ import { BTN } from './constants.js';
 
 // Input is compressed into a single integer (bitmask) per player per tick.
 // That is exactly what goes over the wire: one byte per player per frame.
+//
+// Bindings are stored the way the settings screen needs them - action to key -
+// and turned into a key-to-bitmask lookup for reading input, which is the way
+// the game loop needs them.
 
-export const DEFAULT_KEYMAP = [
-  // Slot 0 - left-hand side of the keyboard
-  { KeyW: BTN.UP, KeyS: BTN.DOWN, KeyA: BTN.LEFT, KeyD: BTN.RIGHT, Space: BTN.FIRE, ShiftLeft: BTN.FIRE },
-  // Slot 1 - right-hand side of the keyboard
+export const ACTIONS = ['up', 'down', 'left', 'right', 'fire'];
+
+export const ACTION_BIT = {
+  up: BTN.UP,
+  down: BTN.DOWN,
+  left: BTN.LEFT,
+  right: BTN.RIGHT,
+  fire: BTN.FIRE,
+};
+
+export const ACTION_LABELS = {
+  up: 'Up',
+  down: 'Down',
+  left: 'Left',
+  right: 'Right',
+  fire: 'Kick / slide',
+};
+
+export const PRESETS = [
   {
-    ArrowUp: BTN.UP,
-    ArrowDown: BTN.DOWN,
-    ArrowLeft: BTN.LEFT,
-    ArrowRight: BTN.RIGHT,
-    Enter: BTN.FIRE,
-    Numpad0: BTN.FIRE,
-    ShiftRight: BTN.FIRE,
-    Slash: BTN.FIRE,
+    key: 'wasd',
+    label: 'W A S D + Space',
+    bindings: { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space' },
+  },
+  {
+    key: 'arrows',
+    label: 'Arrows + Enter',
+    bindings: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire: 'Enter' },
+  },
+  {
+    key: 'arrowsSpace',
+    label: 'Arrows + Space',
+    bindings: { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', fire: 'Space' },
+  },
+  {
+    key: 'ijkl',
+    label: 'I J K L + Shift',
+    bindings: { up: 'KeyI', down: 'KeyK', left: 'KeyJ', right: 'KeyL', fire: 'ShiftRight' },
   },
 ];
 
-const SWALLOW = new Set([
-  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter', 'Slash', 'Numpad0',
-]);
+export function defaultBindings() {
+  return [{ ...PRESETS[0].bindings }, { ...PRESETS[1].bindings }];
+}
+
+// Keys the browser does something else with. Swallowed whether or not they are
+// bound, so the page never scrolls or re-clicks a button mid-match.
+const ALWAYS_SWALLOW = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter'];
+
+const STORAGE_KEY = 'websoccer.bindings';
+
+export function loadBindings() {
+  const fallback = defaultBindings();
+  try {
+    const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
+    if (!raw) return fallback;
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return fallback;
+    // Copied across one key at a time: anything missing or malformed in storage
+    // quietly keeps its default rather than breaking the controls.
+    for (let slot = 0; slot < fallback.length; slot++) {
+      for (const action of ACTIONS) {
+        const code = saved[slot]?.[action];
+        if (typeof code === 'string' && code) fallback[slot][action] = code;
+      }
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveBindings(bindings) {
+  try {
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(bindings));
+  } catch { /* private mode, storage full: not worth interrupting a game for */ }
+}
+
+/**
+ * Keys bound to more than one action. Sharing keys is allowed - one player using
+ * the arrows and space is perfectly sensible - but two players cannot share.
+ */
+export function findConflicts(bindings) {
+  const seen = new Map();
+  const clashes = [];
+  bindings.forEach((slotBindings, slot) => {
+    for (const action of ACTIONS) {
+      const code = slotBindings[action];
+      if (!code) continue;
+      const earlier = seen.get(code);
+      if (earlier && earlier.slot !== slot) clashes.push({ code, a: earlier, b: { slot, action } });
+      else if (!earlier) seen.set(code, { slot, action });
+    }
+  });
+  return clashes;
+}
+
+/** 'KeyW' -> 'W', 'ArrowUp' -> '↑'. What ends up on the button in the menu. */
+export function keyLabel(code) {
+  if (!code) return '—';
+  const named = {
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    ArrowLeft: '←',
+    ArrowRight: '→',
+    Space: 'Space',
+    Enter: 'Enter',
+    ShiftLeft: 'L Shift',
+    ShiftRight: 'R Shift',
+    ControlLeft: 'L Ctrl',
+    ControlRight: 'R Ctrl',
+    AltLeft: 'L Alt',
+    AltRight: 'R Alt',
+    Tab: 'Tab',
+    Backspace: 'Backspace',
+    Slash: '/',
+    Backslash: '\\',
+    Comma: ',',
+    Period: '.',
+    Semicolon: ';',
+    Quote: "'",
+    BracketLeft: '[',
+    BracketRight: ']',
+    Minus: '-',
+    Equal: '=',
+    Backquote: '`',
+  };
+  if (named[code]) return named[code];
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
+  return code;
+}
 
 export class InputDevices {
-  constructor(keymap = DEFAULT_KEYMAP) {
-    this.keymap = keymap;
+  constructor(bindings = loadBindings()) {
     this.down = new Set();
     this.enabled = true;
+    this.setBindings(bindings);
+
     this._onKeyDown = (e) => {
-      if (SWALLOW.has(e.code)) e.preventDefault();
+      if (this.swallow.has(e.code)) e.preventDefault();
       this.down.add(e.code);
     };
     this._onKeyUp = (e) => this.down.delete(e.code);
     this._onBlur = () => this.down.clear();
+  }
+
+  setBindings(bindings) {
+    this.bindings = bindings;
+    this.lookup = bindings.map((slotBindings) => {
+      const map = {};
+      for (const action of ACTIONS) {
+        const code = slotBindings[action];
+        if (code) map[code] = (map[code] || 0) | ACTION_BIT[action];
+      }
+      return map;
+    });
+    this.swallow = new Set(ALWAYS_SWALLOW);
+    for (const map of this.lookup) for (const code of Object.keys(map)) this.swallow.add(code);
   }
 
   attach(target = window) {
@@ -56,7 +189,7 @@ export class InputDevices {
   mask(slot) {
     if (!this.enabled) return 0;
     let m = 0;
-    const map = this.keymap[slot] || {};
+    const map = this.lookup[slot] || {};
     for (const code of this.down) {
       const bit = map[code];
       if (bit) m |= bit;

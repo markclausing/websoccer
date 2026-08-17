@@ -44,6 +44,15 @@ the simulation has to stay deterministic.
 | Kick / slide | `Space`         | `Enter`        |
 | Pause        | `Esc`           | (not online)   |
 
+Those are only the defaults: **every key can be changed in the menu**. Click a key
+and press the one you want, or pick a preset — arrows and space together, say,
+which is a combination the old fixed layout could not give you. Your choice is
+remembered in the browser.
+
+Both players may share keys, which is exactly what you want for one player
+against the CPU; the menu says so and only stops you starting a two player match
+until you have given them separate keys.
+
 Online you control one team and both keyboard halves drive your player. Gamepads
 work as well.
 

@@ -128,6 +128,28 @@ button.primary:hover { background: #fff08a; }
 
 .keys th { color: #9fc7a8; font-weight: normal; letter-spacing: 1px; }
 
+.keys td .bind {
+  min-width: 74px;
+  padding: 5px 8px;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.keys td .bind.listening {
+  background: #ffe14d;
+  color: #12331d;
+  border-color: #ffe14d;
+}
+
+.keys td .bind.clash {
+  border-color: #ff7a5a;
+  color: #ff9d85;
+}
+
+.preset { width: 100%; padding: 5px 6px; font-size: 11px; letter-spacing: 0; }
+
+#bindHint.warn { color: #ff9d85; }
+
 .hints {
   margin: 12px 0 0;
   padding-left: 18px;
