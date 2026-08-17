@@ -1,5 +1,5 @@
 import {
-  FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS, KICKOFF_TICKS, TICK_RATE,
+  AI_LEVELS, FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS, KICKOFF_TICKS, TICK_RATE,
 } from '../constants.js';
 import { clamp } from '../util.js';
 
@@ -11,6 +11,7 @@ export function createMatch(options = {}) {
     seed: 12345,
     halfSeconds: 120, // real seconds per half (displayed as 45 match minutes)
     humans: [true, false], // [is team 0 human?, is team 1 human?]
+    difficulty: 'hard', // only affects CPU teams; a string, or one key per team
     ...options,
   };
 
@@ -32,7 +33,10 @@ export function createMatch(options = {}) {
     restartTeam: 0,
     lastGoalTeam: -1,
     ball: newBall(),
-    teams: [makeTeam(0, opts.humans[0], -1), makeTeam(1, opts.humans[1], +1)],
+    teams: [
+      makeTeam(0, opts.humans[0], -1, levelFor(opts.difficulty, 0)),
+      makeTeam(1, opts.humans[1], +1, levelFor(opts.difficulty, 1)),
+    ],
   };
 
   setupKickoff(state, 0);
@@ -54,10 +58,22 @@ function newBall() {
   };
 }
 
-function makeTeam(index, human, attackDir) {
+/**
+ * `difficulty` is one key for both teams, or one entry per team. An entry may
+ * also be a settings object, which is what the tuning tests use.
+ */
+function levelFor(difficulty, teamIdx) {
+  const entry = Array.isArray(difficulty) ? difficulty[teamIdx] : difficulty;
+  const level = typeof entry === 'object' && entry !== null ? entry : AI_LEVELS[entry];
+  // Copied, so the settings travel with a clone and cannot change mid-match.
+  return { ...AI_LEVELS.hard, ...(level || AI_LEVELS.hard) };
+}
+
+function makeTeam(index, human, attackDir, ai) {
   const preset = TEAM_PRESETS[index];
   return {
     index,
+    ai,
     name: preset.name,
     human: !!human,
     attackDir, // -1 = attacks towards the top (y decreasing), +1 = towards the bottom

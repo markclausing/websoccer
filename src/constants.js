@@ -82,6 +82,61 @@ export const KICKOFF_TICKS = 50;
 export const RESTART_TICKS = 36;
 export const HALFTIME_TICKS = 150;
 
+// CPU difficulty. HARD is the original behaviour and is deliberately left at the
+// neutral values (no delay, no error, multiplier 1), so picking it reproduces the
+// game exactly as it played before difficulties existed.
+//
+// These only ever apply to a CPU team. Your own AI team-mates always play at full
+// strength - weakening them would make the game harder for you, not easier.
+//
+// Tuned by playing each level against HARD, 60 CPU-vs-CPU matches per level over
+// two separate seed ranges (tools/simtest.js keeps an eye on it). Share of the
+// goals scored: HARD ~50%, NORMAL ~33%, EASY ~14%.
+//
+// reactTicks is by far the strongest lever: a team that chases where the ball was
+// three ticks ago barely wins possession back. Everything else is comparatively
+// mild on its own, but shapes how the level feels to play against - a slower
+// opponent you can outrun, sloppier passes you can intercept, fewer slide
+// tackles taking the ball off your feet.
+export const AI_LEVELS = {
+  easy: {
+    key: 'easy',
+    label: 'EASY',
+    reactTicks: 3,
+    aimError: 60,
+    passError: 35,
+    settleTicks: 22,
+    shootRange: 195,
+    pressure: 34,
+    speed: 0.88,
+    slideChance: 0.25,
+  },
+  normal: {
+    key: 'normal',
+    label: 'NORMAL',
+    reactTicks: 2,
+    aimError: 20,
+    passError: 8,
+    settleTicks: 16,
+    shootRange: 245,
+    pressure: 48,
+    speed: 0.97,
+    slideChance: 0.7,
+  },
+  hard: {
+    key: 'hard',
+    label: 'HARD',
+    reactTicks: 0,
+    aimError: 0,
+    passError: 0,
+    settleTicks: 14,
+    shootRange: 265,
+    pressure: 52,
+    speed: 1,
+    slideChance: 1,
+  },
+};
+
 export const BTN = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16 };
 
 export const TEAM_PRESETS = [

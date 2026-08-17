@@ -39,6 +39,8 @@ html, body {
 
 .overlay.hidden { display: none; }
 
+.row.hidden { display: none; }
+
 .panel {
   width: min(560px, 92vw);
   max-height: 92vh;

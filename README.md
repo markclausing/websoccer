@@ -59,6 +59,23 @@ How it feels:
 There are goals, throw-ins, corners, goal kicks, half time and a final whistle.
 No offside and no fouls — deliberately, just like the originals.
 
+## CPU difficulty
+
+Playing against the CPU you can pick **Easy**, **Normal** or **Hard**. Hard is the
+original opponent, untouched; the other two are genuinely weaker rather than just
+slower. Measured by letting each level play HARD 60 times, the share of the goals
+they manage to score comes out around 50% (hard against itself), 33% (normal) and
+14% (easy).
+
+The strongest lever by far is reaction time: an easier CPU chases the ball where
+it was a few ticks ago, so it wins possession back far less often. On top of that
+they shoot less accurately and from closer in, pass more sloppily, dwell on the
+ball, tackle less and run slightly slower.
+
+Your own AI team-mates always play at full strength — handicapping them would
+make the game harder for you, not easier. The setting only ever applies to a CPU
+team, and `tools/simtest.js` checks that the ladder still holds.
+
 ![The full time screen after a match, showing the final score across the pitch and the line "Press ENTER for the menu"](docs/screenshots/full-time.png)
 
 The CPU does not hold back.

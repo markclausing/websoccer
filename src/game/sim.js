@@ -325,9 +325,12 @@ function movePlayer(state, t, p, mv) {
     p.vy *= 0.945;
     if (p.slide === 0) p.cooldown = SLIDE_COOLDOWN;
   } else {
-    const speed = p.role === 'gk'
+    // A CPU team runs at a fraction of full speed on the easier settings. Human
+    // teams (including your AI team-mates) always run at full speed.
+    const handicap = state.teams[t].human ? 1 : state.teams[t].ai.speed;
+    const speed = (p.role === 'gk'
       ? KEEPER_SPEED
-      : owns ? PLAYER_SPEED_BALL : PLAYER_SPEED;
+      : owns ? PLAYER_SPEED_BALL : PLAYER_SPEED) * handicap;
     const l = len(mv.x, mv.y);
     if (l > 0.02) {
       p.dirX = mv.x / l;

@@ -14,6 +14,7 @@ const localSetup = document.getElementById('localSetup');
 const onlineSetup = document.getElementById('onlineSetup');
 const onlineStatus = document.getElementById('onlineStatus');
 const roomCode = document.getElementById('roomCode');
+const difficultyRow = document.getElementById('difficultyRow');
 
 const devices = new InputDevices();
 devices.attach();
@@ -52,6 +53,7 @@ function startLocal({ players, halfSeconds }) {
     seed: (Date.now() & 0x7fffffff) || 1,
     halfSeconds,
     humans: [true, players === 2],
+    difficulty,
   });
   beginMatch(state, new LocalTransport(devices, players === 2 ? [0, 1] : [0]));
 }
@@ -161,6 +163,14 @@ function checkNetEnd() {
 // --- Menu -------------------------------------------------------------------
 
 let mode = '1';
+let difficulty = 'normal';
+
+document.querySelectorAll('[data-difficulty]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    difficulty = btn.dataset.difficulty;
+    document.querySelectorAll('[data-difficulty]').forEach((b) => b.classList.toggle('active', b === btn));
+  });
+});
 
 document.querySelectorAll('[data-mode]').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -168,6 +178,8 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
     document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b === btn));
     localSetup.classList.toggle('hidden', mode === 'online');
     onlineSetup.classList.toggle('hidden', mode !== 'online');
+    // Only worth choosing when there is a CPU to play against.
+    difficultyRow.classList.toggle('hidden', mode !== '1');
 
     // Switching mode releases any room we had opened.
     if (game.signal && !game.state) {

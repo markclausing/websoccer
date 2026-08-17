@@ -1,11 +1,21 @@
 import {
-  FIELD, FIELD_H, FORMATION, GOAL_W, PEN_D, PEN_W,
+  AI_LEVELS, DT, FIELD, FIELD_H, FORMATION, GOAL_W, PEN_D, PEN_W,
 } from '../constants.js';
 import { clamp, dist, dist2, norm, randRange } from '../util.js';
 import { advanceOf, ownGoalY, posFor, targetGoalY } from './state.js';
 
 // The AI runs INSIDE the simulation and only reads state + state.rng. That keeps
 // everything deterministic, which is what makes the lockstep netcode work.
+
+/**
+ * Difficulty settings for one team. A human team's AI team-mates always play at
+ * full strength: making them worse would make the game harder for the human, not
+ * easier. Only a CPU team is held back.
+ */
+function skillOf(state, teamIdx) {
+  const team = state.teams[teamIdx];
+  return team.human ? AI_LEVELS.hard : team.ai;
+}
 
 function predictBall(state, t = 0.18) {
   const b = state.ball;
@@ -30,7 +40,7 @@ function nearestOpponent(state, teamIdx, x, y) {
 /** Which outfield player of this team chases the ball? */
 export function chaserIndex(state, teamIdx) {
   const team = state.teams[teamIdx];
-  const spot = predictBall(state);
+  const spot = predictBall(state, 0.18 - skillOf(state, teamIdx).reactTicks * DT);
   let best = -1;
   let bestD = Infinity;
   for (let i = 1; i < team.players.length; i++) {
@@ -63,6 +73,8 @@ function keeperMove(state, teamIdx) {
   const gy = ownGoalY(team);
   const inBox = Math.abs(b.y - gy) < PEN_D && Math.abs(b.x - FIELD.cx) < PEN_W / 2;
 
+  // The keeper plays the same at every difficulty. Holding him back measurably
+  // made his team stronger rather than weaker, so he is no place for a handicap.
   let tx;
   let ty;
   if (inBox && dist(k.x, k.y, b.x, b.y) < 90) {
@@ -130,6 +142,7 @@ function findPassTarget(state, teamIdx, from) {
 function ownerAction(state, teamIdx, i) {
   const team = state.teams[teamIdx];
   const p = team.players[i];
+  const skill = skillOf(state, teamIdx);
   const goalY = targetGoalY(team);
   const goalX = FIELD.cx;
   const dGoal = dist(p.x, p.y, goalX, goalY);
@@ -150,22 +163,30 @@ function ownerAction(state, teamIdx, i) {
 
   // Settle the ball and dribble first: without this brake the AI knocks the ball
   // straight back out again and the game turns into midfield ping-pong.
-  const settled = p.holdTicks >= 14;
+  const settled = p.holdTicks >= skill.settleTicks;
 
   // Shooting (allowed sooner than passing: a first-time shot is fine).
-  const shootRange = 265;
-  if (p.holdTicks >= 5 && dGoal < shootRange && Math.abs(p.x - goalX) < 210) {
-    const aimX = goalX + randRange(state, -GOAL_W / 2 + 12, GOAL_W / 2 - 12);
+  if (p.holdTicks >= 5 && dGoal < skill.shootRange && Math.abs(p.x - goalX) < 210) {
+    let aimX = goalX + randRange(state, -GOAL_W / 2 + 12, GOAL_W / 2 - 12);
+    // The draw below is skipped entirely when there is no error to add, so HARD
+    // consumes exactly the same random numbers as it always did.
+    if (skill.aimError) aimX += randRange(state, -skill.aimError, skill.aimError);
     const d = norm(aimX - p.x, goalY - p.y);
     const lift = dGoal > 170 ? randRange(state, 0, 90) : 0;
     return { x: d.x, y: d.y, kick: { dx: d.x, dy: d.y, power: 760, lift } };
   }
 
   // Under pressure: pass.
-  if (settled && pressure < 52) {
+  if (settled && pressure < skill.pressure) {
     const mate = findPassTarget(state, teamIdx, p);
     if (mate) {
-      const d = norm(mate.x - p.x, mate.y - p.y);
+      let aimX = mate.x;
+      let aimY = mate.y;
+      if (skill.passError) {
+        aimX += randRange(state, -skill.passError, skill.passError);
+        aimY += randRange(state, -skill.passError, skill.passError);
+      }
+      const d = norm(aimX - p.x, aimY - p.y);
       const dd = dist(p.x, p.y, mate.x, mate.y);
       const power = clamp(dd * 2.1, 340, 720);
       return { x: d.x, y: d.y, kick: { dx: d.x, dy: d.y, power, lift: dd > 220 ? 180 : 0 } };
@@ -215,7 +236,8 @@ export function aiMove(state, teamIdx, i, opts = {}) {
 
   // Without the ball: the nearest player chases, the rest hold their shape.
   if (!weHaveBall && i === chaserIndex(state, teamIdx)) {
-    const spot = predictBall(state, clamp(dist(p.x, p.y, b.x, b.y) / 400, 0.05, 0.35));
+    const lead = clamp(dist(p.x, p.y, b.x, b.y) / 400, 0.05, 0.35);
+    const spot = predictBall(state, lead - skillOf(state, teamIdx).reactTicks * DT);
     const d = norm(spot.x - p.x, spot.y - p.y);
     return { x: d.x, y: d.y };
   }
@@ -251,5 +273,5 @@ export function aiWantsSlide(state, teamIdx, i) {
   if (d > 34 || d < 12) return false;
   // More aggressive in our own half.
   const own = advanceOf(state.teams[teamIdx], p.y) < 0.4;
-  return randRange(state, 0, 1) < (own ? 0.05 : 0.02);
+  return randRange(state, 0, 1) < (own ? 0.05 : 0.02) * skillOf(state, teamIdx).slideChance;
 }

@@ -103,6 +103,12 @@ whether the goals per match stay sane — around 2 to 3 per 2×2 minute match. A
 balance that collapses completely is usually a sign something is broken, not just
 that it plays differently.
 
+`test:sim` also plays each CPU difficulty against HARD and checks the easier
+levels stay measurably weaker. If you add a knob to `AI_LEVELS`, measure it: run
+it against HARD on its own first. Several plausible-sounding handicaps turned out
+to do nothing, and holding the keeper back made his team *stronger*, which is why
+the keeper plays the same at every level.
+
 ## Code style
 
 There is deliberately no linter in your way; keep it simple and consistent with
