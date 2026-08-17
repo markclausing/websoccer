@@ -1,0 +1,14 @@
+{
+  "name": "websoccer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Arcade voetbalgame in HTML/JavaScript met lokale en online multiplayer, gebouwd op een deterministische simulatie.",
+  "scripts": {
+    "start": "node server/relay.js",
+    "test": "node tools/simtest.js && node tools/netcheck.js && node tools/uicheck.js",
+    "test:sim": "node tools/simtest.js",
+    "test:net": "node tools/netcheck.js",
+    "test:ui": "node tools/uicheck.js"
+  }
+}

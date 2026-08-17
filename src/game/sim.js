@@ -1,0 +1,645 @@
+import {
+  AT_LIFT, AT_SIDE, AIR_DRAG, BALL_R, BOUNCE_XY, BOUNCE_Z, BTN, CHARGE_MAX,
+  CONTROL_R, CONTROL_Z, CROSSBAR_H, DOWN_TICKS, DRIBBLE_DIST, DRIBBLE_LERP, DT,
+  FIELD, GOAL_CELEBRATION_TICKS, GOAL_DEPTH, GOAL_W, GRAVITY, GROUND_FRICTION,
+  HALFTIME_TICKS, KEEPER_CONTROL_R, KEEPER_CONTROL_Z, KEEPER_SPEED, PEN_D, PEN_W,
+  PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED, PLAYER_SPEED_BALL, RESTART_TICKS,
+  SIX_D, SLIDE_COOLDOWN, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY, WORLD_H, WORLD_W,
+} from '../constants.js';
+import { clamp, dist, dist2, len, norm } from '../util.js';
+import { maskToDir } from '../input.js';
+import { aiMove, aiWantsSlide } from './ai.js';
+import { chargeToShot, kickBall } from './kick.js';
+import { setupKickoff } from './state.js';
+
+/**
+ * De enige plek waar de wedstrijd verandert.
+ * Puur: zelfde state + zelfde inputs -> zelfde resultaat, op elke machine.
+ *
+ * @param {object} state   wedstrijdtoestand (wordt ter plekke aangepast)
+ * @param {number[]} inputs bitmask per team-slot, bv. [0b10011, 0]
+ */
+export function step(state, inputs) {
+  if (state.phase === 'fulltime') return state;
+
+  state.tick++;
+  advancePhase(state);
+
+  const frozen = state.phase !== 'play';
+
+  updateOwnership(state);
+  updatePlayers(state, inputs, frozen);
+  separatePlayers(state);
+  resolveTackles(state);
+  updateBall(state, inputs);
+
+  if (!frozen) {
+    if (!checkGoal(state)) checkOutOfPlay(state);
+    updateClock(state);
+  }
+  return state;
+}
+
+// --------------------------------------------------------------------------
+// Wedstrijdfases
+// --------------------------------------------------------------------------
+
+function advancePhase(state) {
+  if (state.phaseTimer > 0) {
+    state.phaseTimer--;
+    if (state.phaseTimer > 0) return;
+  } else {
+    return;
+  }
+
+  switch (state.phase) {
+    case 'kickoff':
+    case 'restart':
+      state.phase = 'play';
+      state.message = '';
+      break;
+    case 'goal':
+      setupKickoff(state, 1 - state.lastGoalTeam);
+      break;
+    case 'halftime':
+      state.half = 2;
+      state.halfTick = 0;
+      for (const team of state.teams) team.attackDir *= -1;
+      setupKickoff(state, 1 - state.firstKickoffTeam);
+      break;
+    default:
+      break;
+  }
+}
+
+function updateClock(state) {
+  state.halfTick++;
+  if (state.halfTick < state.config.halfTicks) return;
+
+  if (state.half === 1) {
+    state.phase = 'halftime';
+    state.phaseTimer = HALFTIME_TICKS;
+    state.message = 'RUST';
+  } else {
+    state.phase = 'fulltime';
+    state.phaseTimer = 0;
+    state.message = 'EINDE';
+  }
+}
+
+// --------------------------------------------------------------------------
+// Balbezit
+// --------------------------------------------------------------------------
+
+function canControl(state, team, p) {
+  const b = state.ball;
+  if (p.down > 0 || p.slide > 0 || p.cooldown > 0) return false;
+  const isKeeper = p.role === 'gk';
+  const r = isKeeper ? KEEPER_CONTROL_R : CONTROL_R;
+  const zMax = isKeeper ? KEEPER_CONTROL_Z : CONTROL_Z;
+  if (b.z > zMax) return false;
+  return dist2(b.x, b.y, p.x, p.y) < r * r;
+}
+
+function updateOwnership(state) {
+  const b = state.ball;
+
+  if (b.owner) {
+    const p = state.teams[b.owner.team].players[b.owner.idx];
+    const r = p.role === 'gk' ? KEEPER_CONTROL_R : CONTROL_R;
+    if (p.down > 0 || p.slide > 0 || p.cooldown > 0 || dist2(b.x, b.y, p.x, p.y) > (r * 2) ** 2) {
+      b.owner = null;
+      p.holdTicks = 0;
+      p.charging = false;
+      p.charge = 0;
+    } else {
+      p.holdTicks++;
+      return;
+    }
+  }
+
+  let best = null;
+  let bestD = Infinity;
+  for (let t = 0; t < 2; t++) {
+    const team = state.teams[t];
+    for (let i = 0; i < team.players.length; i++) {
+      const p = team.players[i];
+      if (!canControl(state, team, p)) continue;
+      const d = dist2(b.x, b.y, p.x, p.y);
+      if (d < bestD) {
+        bestD = d;
+        best = { team: t, idx: i };
+      }
+    }
+  }
+  if (best) {
+    b.owner = best;
+    b.lastTouch = { team: best.team, idx: best.idx };
+    b.kicker = null;
+    const p = state.teams[best.team].players[best.idx];
+    p.holdTicks = 0;
+  }
+}
+
+// --------------------------------------------------------------------------
+// Spelers
+// --------------------------------------------------------------------------
+
+const NO_INTENT = { x: 0, y: 0, kick: null, slide: false };
+
+/**
+ * Drie fases per tick. De splitsing is niet cosmetisch: als je team 0 volledig
+ * afhandelt voordat team 1 nadenkt, reageert team 1 op verse posities en team 0
+ * op verouderde. Dat gaf team 1 meetbaar meer doelpunten. Nu bepalen alle 22
+ * spelers hun intentie op exact dezelfde snapshot.
+ */
+function updatePlayers(state, inputs, frozen) {
+  // Fase 0: timers die de besluitvorming beïnvloeden.
+  for (const team of state.teams) {
+    for (const p of team.players) {
+      if (p.cooldown > 0) p.cooldown--;
+    }
+  }
+  for (let t = 0; t < 2; t++) {
+    if (state.teams[t].human) updateControlledPlayer(state, t);
+  }
+
+  // Fase 1: intenties bepalen (leest de gedeelde snapshot).
+  const intents = [[], []];
+  for (let t = 0; t < 2; t++) {
+    const team = state.teams[t];
+    const mask = team.human ? (inputs[t] | 0) : 0;
+    for (let i = 0; i < team.players.length; i++) {
+      const p = team.players[i];
+      if (frozen || p.down > 0) {
+        intents[t][i] = NO_INTENT;
+        continue;
+      }
+      if (team.human && i === team.controlled) {
+        intents[t][i] = humanIntent(state, t, i, mask);
+      } else {
+        const mv = aiMove(state, t, i, { allowKicks: !team.human });
+        intents[t][i] = {
+          x: mv.x,
+          y: mv.y,
+          kick: mv.kick || null,
+          slide: !team.human && aiWantsSlide(state, t, i),
+        };
+      }
+    }
+  }
+
+  // Fase 2: acties uitvoeren (hoogstens één speler heeft de bal, dus hoogstens één trap).
+  for (let t = 0; t < 2; t++) {
+    const team = state.teams[t];
+    for (let i = 0; i < team.players.length; i++) {
+      const it = intents[t][i];
+      if (it.kick) kickBall(state, t, i, it.kick.dx, it.kick.dy, it.kick.power, it.kick.lift);
+      if (it.slide) startSlide(state, team.players[i]);
+    }
+  }
+
+  // Fase 3: bewegen.
+  for (let t = 0; t < 2; t++) {
+    const team = state.teams[t];
+    for (let i = 0; i < team.players.length; i++) {
+      const p = team.players[i];
+      if (p.down > 0) {
+        p.down--;
+        p.vx *= 0.86;
+        p.vy *= 0.86;
+        integratePlayer(p);
+        continue;
+      }
+      if (frozen) {
+        p.charging = false;
+        p.charge = 0;
+      }
+      movePlayer(state, t, p, intents[t][i]);
+    }
+    if (team.human) team.prevMask = inputs[t] | 0;
+  }
+}
+
+/** Auto-switch: je bestuurt altijd de speler met de bal, anders de dichtstbijzijnde. */
+function updateControlledPlayer(state, t) {
+  const team = state.teams[t];
+  const b = state.ball;
+
+  if (b.owner && b.owner.team === t) {
+    team.controlled = b.owner.idx;
+    return;
+  }
+
+  const cur = team.players[team.controlled];
+  if (cur && cur.down === 0 && (cur.slide > 0 || cur.charging)) return;
+
+  const gy = team.attackDir < 0 ? FIELD.bottom : FIELD.top;
+  const keeperEligible = Math.abs(b.y - gy) < PEN_D && Math.abs(b.x - FIELD.cx) < PEN_W / 2;
+
+  let best = team.controlled;
+  let bestD = Infinity;
+  for (let i = 0; i < team.players.length; i++) {
+    const p = team.players[i];
+    if (p.down > 0) continue;
+    if (i === 0 && !keeperEligible) continue;
+    const d = dist2(b.x, b.y, p.x, p.y);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+
+  // Hysterese: niet wisselen bij een verwaarloosbaar verschil (voorkomt geflipflop).
+  if (best !== team.controlled && cur && cur.down === 0) {
+    const curD = dist2(b.x, b.y, cur.x, cur.y);
+    if (curD - bestD < 18 * 18) return;
+  }
+  team.controlled = best;
+}
+
+function humanIntent(state, t, i, mask) {
+  const team = state.teams[t];
+  const p = team.players[i];
+  const b = state.ball;
+  const dir = maskToDir(mask);
+  const intent = { x: dir.x, y: dir.y, kick: null, slide: false };
+
+  const fire = (mask & BTN.FIRE) !== 0;
+  const prevFire = (team.prevMask & BTN.FIRE) !== 0;
+  const owns = b.owner && b.owner.team === t && b.owner.idx === i;
+
+  if (fire && !prevFire) {
+    if (owns) {
+      // Knop ingedrukt met bal: kracht opbouwen tot je loslaat.
+      p.charging = true;
+      p.charge = 0;
+    } else if (p.cooldown === 0 && p.slide === 0) {
+      // Knop zonder bal: sliding.
+      intent.slide = true;
+    }
+  }
+
+  if (p.charging) {
+    if (!owns) {
+      p.charging = false;
+      p.charge = 0;
+    } else {
+      p.charge++;
+      if (!fire || p.charge >= CHARGE_MAX) {
+        const shot = chargeToShot(p.charge);
+        intent.kick = {
+          dx: dir.x || p.dirX,
+          dy: dir.y || p.dirY,
+          power: shot.power,
+          lift: shot.lift,
+        };
+      }
+    }
+  }
+
+  return intent;
+}
+
+function startSlide(state, p) {
+  const b = state.ball;
+  p.slide = SLIDE_TICKS;
+  p.charging = false;
+  p.charge = 0;
+  const d = norm(p.dirX, p.dirY);
+  p.vx = (d.l ? d.x : 0) * SLIDE_SPEED;
+  p.vy = (d.l ? d.y : 1) * SLIDE_SPEED;
+  if (b.owner) {
+    const op = state.teams[b.owner.team].players[b.owner.idx];
+    if (op === p) b.owner = null;
+  }
+}
+
+function movePlayer(state, t, p, mv) {
+  const b = state.ball;
+  const owns = b.owner && b.owner.team === t && b.owner.idx === p.idx;
+
+  if (p.slide > 0) {
+    p.slide--;
+    p.vx *= 0.945;
+    p.vy *= 0.945;
+    if (p.slide === 0) p.cooldown = SLIDE_COOLDOWN;
+  } else {
+    const speed = p.role === 'gk'
+      ? KEEPER_SPEED
+      : owns ? PLAYER_SPEED_BALL : PLAYER_SPEED;
+    const l = len(mv.x, mv.y);
+    if (l > 0.02) {
+      p.dirX = mv.x / l;
+      p.dirY = mv.y / l;
+      const tvx = mv.x * speed;
+      const tvy = mv.y * speed;
+      p.vx += clamp(tvx - p.vx, -PLAYER_ACC * DT, PLAYER_ACC * DT);
+      p.vy += clamp(tvy - p.vy, -PLAYER_ACC * DT, PLAYER_ACC * DT);
+    } else {
+      p.vx *= PLAYER_DAMP;
+      p.vy *= PLAYER_DAMP;
+    }
+  }
+  integratePlayer(p);
+}
+
+function integratePlayer(p) {
+  p.x = clamp(p.x + p.vx * DT, 8, WORLD_W - 8);
+  p.y = clamp(p.y + p.vy * DT, 8, WORLD_H - 8);
+}
+
+/** Spelers mogen niet door elkaar heen lopen. */
+function separatePlayers(state) {
+  const all = [];
+  for (const team of state.teams) for (const p of team.players) all.push(p);
+
+  const minD = PLAYER_R * 2;
+  for (let a = 0; a < all.length; a++) {
+    for (let c = a + 1; c < all.length; c++) {
+      const p = all[a];
+      const q = all[c];
+      const dx = q.x - p.x;
+      const dy = q.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= minD * minD || d2 < 1e-6) continue;
+      const d = Math.sqrt(d2);
+      const push = (minD - d) / 2;
+      const nx = dx / d;
+      const ny = dy / d;
+      p.x -= nx * push;
+      p.y -= ny * push;
+      q.x += nx * push;
+      q.y += ny * push;
+    }
+  }
+}
+
+/** Slidings: bal wegtikken en tegenstanders neerhalen. */
+function resolveTackles(state) {
+  const b = state.ball;
+  for (let t = 0; t < 2; t++) {
+    for (const p of state.teams[t].players) {
+      if (p.slide <= 0) continue;
+
+      // Tegen de bal
+      if (b.z < 20 && dist2(b.x, b.y, p.x, p.y) < (PLAYER_R + BALL_R + 6) ** 2) {
+        if (!b.owner || b.owner.team !== t) {
+          const d = norm(p.vx, p.vy);
+          const dx = d.l ? d.x : p.dirX;
+          const dy = d.l ? d.y : p.dirY;
+          b.vx = dx * 300;
+          b.vy = dy * 300;
+          b.vz = 40;
+          b.owner = null;
+          b.lastTouch = { team: t, idx: p.idx };
+          b.kicker = null;
+          p.cooldown = Math.max(p.cooldown, 10);
+        }
+      }
+
+      // Tegen tegenstanders
+      const opp = state.teams[1 - t];
+      for (const o of opp.players) {
+        if (o.down > 0) continue;
+        if (dist2(o.x, o.y, p.x, p.y) < (PLAYER_R * 2 + 3) ** 2) {
+          o.down = DOWN_TICKS;
+          o.vx = p.vx * 0.5;
+          o.vy = p.vy * 0.5;
+          if (b.owner && b.owner.team === opp.index && b.owner.idx === o.idx) b.owner = null;
+        }
+      }
+    }
+  }
+}
+
+// --------------------------------------------------------------------------
+// Bal
+// --------------------------------------------------------------------------
+
+function updateBall(state, inputs) {
+  const b = state.ball;
+
+  if (state.phase === 'goal') {
+    b.vx *= 0.88;
+    b.vy *= 0.88;
+    b.x += b.vx * DT;
+    b.y += b.vy * DT;
+    b.z = Math.max(0, b.z + b.vz * DT);
+    b.vz -= GRAVITY * DT;
+    if (b.z <= 0) {
+      b.z = 0;
+      b.vz = 0;
+    }
+    return;
+  }
+
+  if (b.owner) {
+    const p = state.teams[b.owner.team].players[b.owner.idx];
+    const tx = p.x + p.dirX * DRIBBLE_DIST;
+    const ty = p.y + p.dirY * DRIBBLE_DIST;
+    b.x += (tx - b.x) * DRIBBLE_LERP;
+    b.y += (ty - b.y) * DRIBBLE_LERP;
+    b.vx = p.vx;
+    b.vy = p.vy;
+    b.z = 0;
+    b.vz = 0;
+    b.spin = 0;
+    return;
+  }
+
+  applyAftertouch(state, inputs);
+
+  const airborne = b.z > 0.5;
+  const damp = airborne ? AIR_DRAG : GROUND_FRICTION;
+  b.vx *= damp;
+  b.vy *= damp;
+
+  // Effect: draait de snelheidsvector langzaam (Sensible-curve).
+  if (Math.abs(b.spin) > 1e-4) {
+    const c = Math.cos(b.spin * DT);
+    const s = Math.sin(b.spin * DT);
+    const vx = b.vx * c - b.vy * s;
+    const vy = b.vx * s + b.vy * c;
+    b.vx = vx;
+    b.vy = vy;
+    b.spin *= SPIN_DECAY;
+  }
+
+  b.x += b.vx * DT;
+  b.y += b.vy * DT;
+  b.z += b.vz * DT;
+  b.vz -= GRAVITY * DT;
+
+  if (b.z <= 0) {
+    b.z = 0;
+    if (b.vz < -40) {
+      b.vz = -b.vz * BOUNCE_Z;
+      b.vx *= BOUNCE_XY;
+      b.vy *= BOUNCE_XY;
+    } else {
+      b.vz = 0;
+    }
+  }
+
+  if (Math.abs(b.vx) < 2) b.vx = 0;
+  if (Math.abs(b.vy) < 2) b.vy = 0;
+}
+
+/**
+ * Aftertouch: na een trap kan de speler die trapte de bal nog bijsturen.
+ * Zijwaarts t.o.v. de balrichting = curve, vooruit/achteruit = lift of dip.
+ */
+function applyAftertouch(state, inputs) {
+  const b = state.ball;
+  if (!b.kicker) return;
+  if (b.kicker.ticks <= 0) {
+    b.kicker = null;
+    return;
+  }
+  b.kicker.ticks--;
+
+  const team = state.teams[b.kicker.team];
+  if (!team.human) return;
+
+  const dir = maskToDir(inputs[b.kicker.team] | 0);
+  if (!dir.x && !dir.y) return;
+
+  const bd = norm(b.vx, b.vy);
+  if (bd.l < 20) return;
+
+  const cross = bd.x * dir.y - bd.y * dir.x; // zijwaartse component
+  const dot = bd.x * dir.x + bd.y * dir.y; // component langs de bal
+
+  b.vx += -bd.y * cross * AT_SIDE * DT;
+  b.vy += bd.x * cross * AT_SIDE * DT;
+  b.spin += cross * 1.4 * DT;
+
+  if (b.z > 0.5) {
+    b.vz += dot * AT_LIFT * DT;
+  } else if (dot > 0) {
+    b.vz += dot * AT_LIFT * 0.35 * DT;
+  }
+}
+
+// --------------------------------------------------------------------------
+// Spelregels
+// --------------------------------------------------------------------------
+
+function checkGoal(state) {
+  const b = state.ball;
+  if (Math.abs(b.x - FIELD.cx) > GOAL_W / 2 || b.z > CROSSBAR_H) return false;
+
+  let scoringTeam = -1;
+  if (b.y < FIELD.top - 2) {
+    scoringTeam = state.teams[0].attackDir < 0 ? 0 : 1;
+    b.y = Math.max(b.y, FIELD.top - GOAL_DEPTH + 8);
+  } else if (b.y > FIELD.bottom + 2) {
+    scoringTeam = state.teams[0].attackDir > 0 ? 0 : 1;
+    b.y = Math.min(b.y, FIELD.bottom + GOAL_DEPTH - 8);
+  }
+  if (scoringTeam < 0) return false;
+
+  state.score[scoringTeam]++;
+  state.lastGoalTeam = scoringTeam;
+  state.phase = 'goal';
+  state.phaseTimer = GOAL_CELEBRATION_TICKS;
+  state.message = 'GOAL!';
+  b.owner = null;
+  b.kicker = null;
+  b.vx *= 0.3;
+  b.vy *= 0.3;
+  return true;
+}
+
+function checkOutOfPlay(state) {
+  const b = state.ball;
+  const lastTeam = b.lastTouch ? b.lastTouch.team : state.kickoffTeam;
+
+  // Zijlijn -> inworp
+  if (b.x < FIELD.left - BALL_R || b.x > FIELD.right + BALL_R) {
+    const x = b.x < FIELD.cx ? FIELD.left + 4 : FIELD.right - 4;
+    const y = clamp(b.y, FIELD.top + 24, FIELD.bottom - 24);
+    setRestart(state, x, y, 1 - lastTeam, 'INWORP');
+    return;
+  }
+
+  if (b.y >= FIELD.top - BALL_R && b.y <= FIELD.bottom + BALL_R) return;
+
+  // Achterlijn -> hoekschop of doeltrap
+  const topEnd = b.y < FIELD.cy;
+  const goalY = topEnd ? FIELD.top : FIELD.bottom;
+  const defender = state.teams[0].attackDir < 0
+    ? (topEnd ? 1 : 0) // team 0 valt boven aan, dus boven verdedigt team 1
+    : (topEnd ? 0 : 1);
+
+  if (lastTeam === defender) {
+    // Hoekschop voor de aanvallende ploeg
+    const x = b.x < FIELD.cx ? FIELD.left + 8 : FIELD.right - 8;
+    const y = topEnd ? FIELD.top + 8 : FIELD.bottom - 8;
+    setRestart(state, x, y, 1 - defender, 'HOEKSCHOP');
+  } else {
+    // Doeltrap voor de verdedigende ploeg
+    const x = FIELD.cx + (b.x < FIELD.cx ? -58 : 58);
+    const y = topEnd ? FIELD.top + SIX_D : FIELD.bottom - SIX_D;
+    setRestart(state, x, y, defender, 'DOELTRAP');
+  }
+}
+
+function setRestart(state, x, y, teamIdx, message) {
+  const b = state.ball;
+  b.x = x;
+  b.y = y;
+  b.z = 0;
+  b.vx = 0;
+  b.vy = 0;
+  b.vz = 0;
+  b.spin = 0;
+  b.owner = null;
+  b.kicker = null;
+
+  state.phase = 'restart';
+  state.phaseTimer = RESTART_TICKS;
+  state.restartTeam = teamIdx;
+  state.message = message;
+
+  // Dichtstbijzijnde veldspeler neemt de bal.
+  const team = state.teams[teamIdx];
+  let takerIdx = 1;
+  let bestD = Infinity;
+  for (let i = 1; i < team.players.length; i++) {
+    const p = team.players[i];
+    if (p.down > 0) continue;
+    const d = dist2(x, y, p.x, p.y);
+    if (d < bestD) {
+      bestD = d;
+      takerIdx = i;
+    }
+  }
+  const taker = team.players[takerIdx];
+  const gy = team.attackDir < 0 ? FIELD.bottom : FIELD.top;
+  const back = norm(FIELD.cx - x, gy - y);
+  taker.x = x + back.x * 12;
+  taker.y = y + back.y * 12;
+  taker.vx = 0;
+  taker.vy = 0;
+  taker.dirX = -back.x;
+  taker.dirY = -back.y;
+  taker.cooldown = 0;
+  taker.slide = 0;
+  taker.down = 0;
+  team.controlled = takerIdx;
+
+  // Tegenstanders op afstand zetten.
+  const opp = state.teams[1 - teamIdx];
+  for (const o of opp.players) {
+    const d = dist(o.x, o.y, x, y);
+    if (d < 46 && d > 0.01) {
+      const n = norm(o.x - x, o.y - y);
+      o.x = x + n.x * 46;
+      o.y = y + n.y * 46;
+      o.vx = 0;
+      o.vy = 0;
+    }
+  }
+}

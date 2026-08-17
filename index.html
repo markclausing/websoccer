@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sensible Soccer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="game" width="900" height="620" tabindex="0"></canvas>
+
+    <div id="menu" class="overlay">
+      <div class="panel">
+        <h1>SENSIBLE<span>SOCCER</span></h1>
+        <p class="tag">HTML / JavaScript &middot; lokaal &amp; online</p>
+
+        <div class="row">
+          <label>Modus</label>
+          <div class="btns">
+            <button data-mode="1" class="active">1 speler</button>
+            <button data-mode="2">2 spelers</button>
+            <button data-mode="online">Online</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="duration">Speelduur</label>
+          <select id="duration">
+            <option value="60">Kort (2 &times; 1 min)</option>
+            <option value="120" selected>Normaal (2 &times; 2 min)</option>
+            <option value="240">Lang (2 &times; 4 min)</option>
+          </select>
+        </div>
+
+        <div id="localSetup">
+          <table class="keys">
+            <thead>
+              <tr><th></th><th>Speler 1 (blauw)</th><th>Speler 2 (rood)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Lopen</td><td>W A S D</td><td>Pijltjes</td></tr>
+              <tr><td>Trap / sliding</td><td>Spatie</td><td>Enter</td></tr>
+            </tbody>
+          </table>
+
+          <ul class="hints">
+            <li><b>Kort tikken</b> = pass over de grond, <b>ingedrukt houden</b> = harde of hoge bal.</li>
+            <li><b>Aftertouch:</b> blijf na het schot sturen om de bal te laten krullen; naar voren = lift, naar achter = dip.</li>
+            <li>Knop <b>zonder bal</b> = sliding.</li>
+            <li>Je bestuurt automatisch de speler die het dichtst bij de bal is.</li>
+            <li>Gamepads werken ook (controller 1 &rarr; blauw, controller 2 &rarr; rood).</li>
+            <li><b>Esc</b> = pauze.</li>
+          </ul>
+
+          <button id="start" class="primary">AFTRAP</button>
+        </div>
+
+        <div id="onlineSetup" class="hidden">
+          <p class="explain">
+            Eén speler opent een wedstrijd en geeft de code door; de ander vult die code in.
+            De opener speelt <b>blauw</b>, de tweede speler <b>rood</b>. Je bestuurt je eigen
+            team met <b>W A S D + spatie</b> of met <b>pijltjes + enter</b>.
+          </p>
+
+          <div id="roomCode" class="code hidden"></div>
+          <p id="onlineStatus" class="status"></p>
+
+          <button id="host" class="primary">NIEUWE WEDSTRIJD OPENEN</button>
+
+          <div class="joinrow">
+            <input id="joinCode" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false">
+            <button id="join">DEELNEMEN</button>
+          </div>
+
+          <p class="fineprint">
+            Werkt tussen twee tabbladen, tussen computers in hetzelfde netwerk, en over
+            internet zodra je <code>server/relay.js</code> ergens neerzet.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+      <div class="panel small">
+        <h2>PAUZE</h2>
+        <button id="resume" class="primary">Verder spelen</button>
+        <button id="quit">Terug naar menu</button>
+      </div>
+    </div>
+
+    <div id="netend" class="overlay hidden">
+      <div class="panel small">
+        <h2 id="netendTitle">VERBINDING WEG</h2>
+        <p id="netendText" class="status"></p>
+        <button id="netendQuit" class="primary">Terug naar menu</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
