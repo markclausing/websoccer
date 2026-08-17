@@ -125,7 +125,14 @@ build step, and it is an original piece written in that style rather than a
 recreation of any particular game's theme.
 
 It plays on the menu and stops at kickoff, and there is an on/off switch that is
-remembered. Browsers refuse to make a sound before the visitor has interacted
+remembered.
+
+During a match the same synthesiser does the effects: the referee's whistle (two
+close tones beating against each other with a fast wobble for the pea), boot on
+ball (a click of noise over a short thump, harder the harder you hit it), studs
+through grass for a slide tackle, and a crowd that swells and falls away when
+someone scores. The simulation reports what happened as a list of events each
+tick and the sound reacts to those, so it never learns anything about audio. Browsers refuse to make a sound before the visitor has interacted
 with the page, so it starts on your first click or key press.
 
 ## CPU difficulty
@@ -284,8 +291,7 @@ gives you `ping`, `delay`, `stalls` and `desync`.
 - No fouls, free kicks, penalties or offside.
 - One formation (4-3-3) and two teams; no team selection or league yet.
 - The keeper is simple: he walks to the ball and hoofs it clear, he does not dive.
-- Sound is the title tune and nothing else: no whistle, no crowd, no thump when
-  you hit it.
+- No commentary, no ambient crowd between the goals, no net ripple.
 - Online: no rematch button (back to the menu and start again), no reconnecting
   after a drop, and messages go over the wire as JSON. Around 4 kB/s per player —
   fine, but binary would be considerably leaner.

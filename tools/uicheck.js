@@ -11,7 +11,7 @@ import { createMatch } from '../src/game/state.js';
 import { step } from '../src/game/sim.js';
 import { Signal } from '../src/net/signal.js';
 import { OnlineTransport } from '../src/net/transport.js';
-import { TRACK, noteFreq } from '../src/audio.js';
+import { AudioEngine, Chiptune, Sfx, TRACK, noteFreq } from '../src/audio.js';
 import { TouchControls } from '../src/touch.js';
 import { BTN } from '../src/constants.js';
 
@@ -131,7 +131,14 @@ global.window = {
 
 // Enough Web Audio to run the tune's scheduler and count what it plays.
 let scheduledTones = 0;
-const audioParam = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} });
+let scheduledNodes = 0;
+const audioParam = () => ({
+  value: 0,
+  setValueAtTime() {},
+  exponentialRampToValueAtTime() {},
+  cancelScheduledValues() {},
+  linearRampToValueAtTime() {},
+});
 const node = (extra = {}) => ({
   connect(next) { return next; },
   gain: audioParam(),
@@ -144,15 +151,16 @@ class FakeAudioContext {
     this.sampleRate = 44100;
     this.destination = node();
   }
-  createGain() { return node(); }
+  createGain() { scheduledNodes++; return node({ gain: audioParam() }); }
   createOscillator() {
     scheduledTones++;
+    scheduledNodes++;
     return node({ start() {}, stop() {}, setPeriodicWave() {}, type: 'square' });
   }
   createPeriodicWave() { return {}; }
-  createBiquadFilter() { return node({ type: 'bandpass' }); }
+  createBiquadFilter() { return node({ type: 'bandpass', Q: { value: 1 }, frequency: audioParam() }); }
   createBuffer(_c, frames) { return { getChannelData: () => new Float32Array(frames) }; }
-  createBufferSource() { return node({ start() {}, stop() {}, buffer: null }); }
+  createBufferSource() { scheduledNodes++; return node({ start() {}, stop() {}, buffer: null, loop: false }); }
   resume() {}
   suspend() {}
 }
@@ -259,7 +267,8 @@ async function main() {
       if (!(n.dur > 0)) throw new Error('a note has no length');
     }
     const beforeTones = scheduledTones;
-    const tune = new (await import('../src/audio.js')).Chiptune();
+    const engine = new AudioEngine();
+    const tune = new Chiptune(engine);
     tune.start();
     tune.ctx.currentTime = TRACK.step * TRACK.steps; // one full loop
     tune.schedule();
@@ -267,6 +276,34 @@ async function main() {
     const played = scheduledTones - beforeTones;
     if (played < TRACK.steps) throw new Error(`the sequencer only scheduled ${played} voices in a full loop`);
     console.log(`OK: title tune sequences (${voiced.length} notes per loop, ${played} voices scheduled)`);
+
+    // 1e. The match sounds. Again unlistenable from here, so check that each
+    // event actually reaches the synthesiser and builds something.
+    const effects = new Sfx(engine);
+    const counted = (fn) => {
+      const before = scheduledNodes;
+      fn();
+      return scheduledNodes - before;
+    };
+    const built = {
+      whistle: counted(() => effects.whistle('start')),
+      fullTime: counted(() => effects.whistle('end')),
+      kick: counted(() => effects.kick(900)),
+      slide: counted(() => effects.slide()),
+      cheer: counted(() => effects.cheer()),
+    };
+    for (const [name, nodes] of Object.entries(built)) {
+      if (nodes < 1) throw new Error(`the ${name} sound built nothing`);
+    }
+    if (built.fullTime <= built.whistle) {
+      throw new Error('the full time whistle should be more than a single blast');
+    }
+    // Driven from the events the simulation reports, not from the UI.
+    const viaEvents = counted(() => effects.play([
+      { type: 'kick', power: 800 }, { type: 'kick', power: 800 }, { type: 'slide' },
+    ]));
+    if (viaEvents < 2) throw new Error('events did not reach the synthesiser');
+    console.log(`OK: match sounds build (whistle ${built.whistle}, kick ${built.kick}, slide ${built.slide}, crowd ${built.cheer} nodes)`);
 
     // 1d. The on-screen controls: a thumb on the stick has to come out as the
     // same bitmask a keyboard would produce.

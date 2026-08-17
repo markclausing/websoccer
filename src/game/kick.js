@@ -33,6 +33,8 @@ export function kickBall(state, teamIdx, playerIdx, dx, dy, power, lift) {
   }
   b.kicker = { team: teamIdx, idx: playerIdx, ticks: AFTERTOUCH_TICKS };
 
+  state.events.push({ type: 'kick', power, lift });
+
   // Who was beyond the line at the moment it was played?
   flagOffside(state, teamIdx, playerIdx);
 

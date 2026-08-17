@@ -26,6 +26,7 @@ export function step(state, inputs) {
   if (state.phase === 'fulltime') return state;
 
   state.tick++;
+  state.events.length = 0;
   advancePhase(state);
 
   const frozen = state.phase !== 'play';
@@ -61,6 +62,7 @@ function advancePhase(state) {
     case 'restart':
       state.phase = 'play';
       state.message = '';
+      state.events.push({ type: 'whistle', kind: 'start' });
       break;
     case 'goal':
       setupKickoff(state, 1 - state.lastGoalTeam);
@@ -84,10 +86,12 @@ function updateClock(state) {
     state.phase = 'halftime';
     state.phaseTimer = HALFTIME_TICKS;
     state.message = 'HALF TIME';
+    state.events.push({ type: 'whistle', kind: 'half' });
   } else {
     state.phase = 'fulltime';
     state.phaseTimer = 0;
     state.message = 'FULL TIME';
+    state.events.push({ type: 'whistle', kind: 'end' });
   }
 }
 
@@ -371,6 +375,7 @@ function humanIntent(state, t, i, mask) {
 
 function startSlide(state, p) {
   const b = state.ball;
+  state.events.push({ type: 'slide' });
   p.slide = SLIDE_TICKS;
   p.charging = false;
   p.charge = 0;
@@ -628,6 +633,7 @@ function checkGoal(state) {
   state.phase = 'goal';
   state.phaseTimer = GOAL_CELEBRATION_TICKS;
   state.message = 'GOAL!';
+  state.events.push({ type: 'goal', team: scoringTeam });
   b.owner = null;
   b.kicker = null;
   b.vx *= 0.3;
@@ -696,6 +702,7 @@ function setRestart(state, x, y, teamIdx, message, forcedTaker = null) {
   state.phaseTimer = RESTART_TICKS;
   state.restartTeam = teamIdx;
   state.message = message;
+  state.events.push({ type: 'whistle', kind: 'restart' });
 
   // Nearest outfield player takes it - unless the restart names someone, which
   // a goal kick does: that is the keeper's to take.

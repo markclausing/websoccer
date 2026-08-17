@@ -31,6 +31,9 @@ export function createMatch(options = {}) {
     halfTick: 0,
     score: [0, 0],
     message: '',
+    // What happened this tick: the renderer and the sound react to these, the
+    // simulation itself never reads them back. Cleared at the top of every step.
+    events: [],
     kickoffTeam: 0,
     firstKickoffTeam: 0,
     restartTeam: 0,

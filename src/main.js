@@ -7,7 +7,7 @@ import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
 import { LocalTransport, OnlineTransport } from './net/transport.js';
 import { Signal } from './net/signal.js';
-import { Chiptune } from './audio.js';
+import { AudioEngine, Chiptune, Sfx } from './audio.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 
 const canvas = document.getElementById('game');
@@ -20,8 +20,11 @@ const onlineStatus = document.getElementById('onlineStatus');
 const roomCode = document.getElementById('roomCode');
 const difficultyRow = document.getElementById('difficultyRow');
 
-const music = new Chiptune();
-let musicOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';
+const audio = new AudioEngine();
+const music = new Chiptune(audio);
+const sfx = new Sfx(audio);
+let soundOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';
+audio.enabled = soundOn;
 
 const bindings = loadBindings();
 const devices = new InputDevices(bindings);
@@ -139,7 +142,7 @@ function toMenu() {
   pauseBox.classList.add('hidden');
   netendBox.classList.add('hidden');
   touch.show(false);
-  if (musicOn) music.start();
+  if (soundOn) music.start();
   setOnlineStatus('');
   roomCode.classList.add('hidden');
   document.getElementById('host').disabled = false;
@@ -158,6 +161,7 @@ function frame(now) {
     game.acc += elapsed;
 
     let guard = 0;
+    const events = [];
     while (game.acc >= FRAME_TIME && guard < 8) {
       const tick = game.state.tick;
 
@@ -169,9 +173,12 @@ function frame(now) {
 
       step(game.state, game.transport.poll(tick));
       game.transport.afterStep(game.state);
+      // Collected here, because the next tick clears the list.
+      if (game.state.events.length) events.push(...game.state.events);
       game.acc -= FRAME_TIME;
       guard++;
     }
+    if (events.length) sfx.play(events);
 
     // Do not let the backlog grow: after a hiccup we catch up a few ticks, but
     // we never fast-forward through ten seconds of football.
@@ -345,14 +352,16 @@ let difficulty = 'normal';
 let offside = true;
 
 document.querySelectorAll('[data-music]').forEach((btn) => {
-  btn.classList.toggle('active', (btn.dataset.music === 'on') === musicOn);
+  btn.classList.toggle('active', (btn.dataset.music === 'on') === soundOn);
   btn.addEventListener('click', () => {
-    musicOn = btn.dataset.music === 'on';
+    soundOn = btn.dataset.music === 'on';
     document.querySelectorAll('[data-music]').forEach((b) => b.classList.toggle('active', b === btn));
     try {
-      globalThis.localStorage?.setItem('websoccer.music', musicOn ? 'on' : 'off');
+      globalThis.localStorage?.setItem('websoccer.music', soundOn ? 'on' : 'off');
     } catch { /* private mode: the setting just will not stick */ }
-    music.toggle(musicOn && !game.state);
+    audio.enabled = soundOn;
+    if (soundOn) audio.wake();
+    music.toggle(soundOn && !game.state);
   });
 });
 
@@ -509,7 +518,8 @@ window.addEventListener('keydown', (e) => {
 // page, so the tune waits for the first click or key press rather than being
 // started on load and silently failing.
 function startMusicOnFirstGesture() {
-  if (musicOn && !game.state) music.start();
+  if (soundOn) audio.wake();
+  if (soundOn && !game.state) music.start();
   window.removeEventListener('pointerdown', startMusicOnFirstGesture);
   window.removeEventListener('keydown', startMusicOnFirstGesture);
 }
