@@ -45,6 +45,17 @@ the simulation has to stay deterministic.
 | Switch player | `Q`            | `R Shift`      |
 | Pause        | `Esc`           | (not online)   |
 
+### Fullscreen on a phone
+
+On Android the game takes the whole screen when you kick off, address bar and
+all. **Safari on iPhone has no fullscreen for a web page** — no page can hide
+those bars. What does work is installing it: Share → Add to Home Screen, and it
+opens as its own app with nothing around it. The menu says so on an iPhone that
+has not installed it yet. There is a web manifest and a set of icons for exactly
+this; `node tools/make-icons.js` regenerates them.
+
+### Controls
+
 On a **phone or tablet** you get a thumbstick and two buttons on screen instead,
 and the game asks you to turn the device sideways — a pitch a few centimetres
 tall is no use to anyone. The on-screen controls produce the same input as the

@@ -29,6 +29,41 @@ devices.attach();
 
 const touch = new TouchControls();
 const onTouchDevice = isTouchDevice();
+
+/**
+ * Ask for the whole screen. Android hands it over and the address bar goes; iOS
+ * Safari has no fullscreen for a page at all, which is what the hint below is
+ * for. Has to happen inside a tap, or the browser refuses.
+ */
+function goFullscreen() {
+  if (!onTouchDevice) return;
+  const el = document.documentElement;
+  const request = el.requestFullscreen || el.webkitRequestFullscreen;
+  try {
+    const result = request?.call(el, { navigationUI: 'hide' });
+    result?.catch?.(() => {}); // refused is fine, the game plays either way
+  } catch { /* not supported */ }
+  try {
+    globalThis.screen?.orientation?.lock?.('landscape')?.catch?.(() => {});
+  } catch { /* only allowed in fullscreen on some browsers */ }
+}
+
+// On an iPhone the bars cannot be hidden by a page, so point at the one thing
+// that does work. Shown only where it applies.
+const ua = globalThis.navigator?.userAgent || '';
+const onIOS = /iPad|iPhone|iPod/.test(ua)
+  || (globalThis.navigator?.platform === 'MacIntel' && globalThis.navigator?.maxTouchPoints > 1);
+const installed = globalThis.navigator?.standalone === true
+  || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
+  || (typeof matchMedia === 'function' && matchMedia('(display-mode: fullscreen)').matches);
+if (onIOS && !installed) {
+  const hint = document.getElementById('iosHint');
+  if (hint) {
+    hint.textContent = 'iPhone: Safari always keeps its bars. Share → Add to Home Screen, '
+      + 'and it opens with the whole screen to itself.';
+    hint.classList.remove('hidden');
+  }
+}
 if (onTouchDevice) {
   touch.attach({
     root: document.getElementById('touch'),
@@ -357,6 +392,7 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
 });
 
 document.getElementById('start').addEventListener('click', () => {
+  goFullscreen();
   const players = Number(mode);
   // Sharing keys is fine for one player, impossible for two.
   if (players === 2 && findConflicts(bindings).length) {
@@ -413,6 +449,7 @@ function connect() {
 
 // Opening a match: we are the host, so we pick the seed.
 document.getElementById('host').addEventListener('click', () => {
+  goFullscreen();
   const secs = halfSeconds();
   const signal = connect();
 
@@ -435,6 +472,7 @@ document.getElementById('host').addEventListener('click', () => {
 
 // Joining: we get the seed from the host and play red.
 document.getElementById('join').addEventListener('click', () => {
+  goFullscreen();
   const code = document.getElementById('joinCode').value.toUpperCase().trim();
   if (code.length < 4) {
     setOnlineStatus('Enter the four-character code.');
