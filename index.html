@@ -50,21 +50,22 @@
           </select>
         </div>
 
+        <table class="keys">
+          <thead>
+            <tr><th></th><th>Player 1 (blue)</th><th id="p2head">Player 2 (red)</th></tr>
+          </thead>
+          <tbody id="keysBody"></tbody>
+          <tfoot>
+            <tr>
+              <td>Presets</td>
+              <td><select data-preset="0" class="preset"></select></td>
+              <td><select data-preset="1" class="preset"></select></td>
+            </tr>
+          </tfoot>
+        </table>
+        <p id="bindHint" class="status">Click a key to change it.</p>
+
         <div id="localSetup">
-          <table class="keys">
-            <thead>
-              <tr><th></th><th>Player 1 (blue)</th><th id="p2head">Player 2 (red)</th></tr>
-            </thead>
-            <tbody id="keysBody"></tbody>
-            <tfoot>
-              <tr>
-                <td>Presets</td>
-                <td><select data-preset="0" class="preset"></select></td>
-                <td><select data-preset="1" class="preset"></select></td>
-              </tr>
-            </tfoot>
-          </table>
-          <p id="bindHint" class="status">Click a key to change it.</p>
 
           <ul class="hints">
             <li><b>Tap</b> for a pass along the ground, <b>hold</b> for a harder or lofted ball.</li>
@@ -82,8 +83,7 @@
           <p class="explain">
             One player opens a match and passes on the code; the other enters it.
             Whoever opens the match plays <b>blue</b>, the second player <b>red</b>.
-            You control your own team with <b>W A S D + space</b> or with
-            <b>the arrow keys + enter</b>.
+            You control your own team with either set of keys from the table above.
           </p>
 
           <div id="roomCode" class="code hidden"></div>
