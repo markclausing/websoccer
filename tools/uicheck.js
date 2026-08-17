@@ -11,6 +11,7 @@ import { createMatch } from '../src/game/state.js';
 import { step } from '../src/game/sim.js';
 import { Signal } from '../src/net/signal.js';
 import { OnlineTransport } from '../src/net/transport.js';
+import { TRACK, noteFreq } from '../src/audio.js';
 
 const PORT = 5196;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -118,7 +119,42 @@ global.document = {
     return [];
   },
 };
-global.window = { addEventListener: addListener };
+global.window = {
+  addEventListener: addListener,
+  removeEventListener: (ev, fn) => {
+    const list = listeners.get(ev);
+    if (list) listeners.set(ev, list.filter((f) => f !== fn));
+  },
+};
+
+// Enough Web Audio to run the tune's scheduler and count what it plays.
+let scheduledTones = 0;
+const audioParam = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} });
+const node = (extra = {}) => ({
+  connect(next) { return next; },
+  gain: audioParam(),
+  frequency: audioParam(),
+  ...extra,
+});
+class FakeAudioContext {
+  constructor() {
+    this.currentTime = 0;
+    this.sampleRate = 44100;
+    this.destination = node();
+  }
+  createGain() { return node(); }
+  createOscillator() {
+    scheduledTones++;
+    return node({ start() {}, stop() {}, setPeriodicWave() {}, type: 'square' });
+  }
+  createPeriodicWave() { return {}; }
+  createBiquadFilter() { return node({ type: 'bandpass' }); }
+  createBuffer(_c, frames) { return { getChannelData: () => new Float32Array(frames) }; }
+  createBufferSource() { return node({ start() {}, stop() {}, buffer: null }); }
+  resume() {}
+  suspend() {}
+}
+Object.defineProperty(global, 'AudioContext', { value: FakeAudioContext, configurable: true });
 Object.defineProperty(global, 'navigator', {
   value: { getGamepads: () => [null, null] },
   configurable: true,
@@ -208,6 +244,27 @@ async function main() {
       throw new Error('the new binding was not saved');
     }
     console.log('OK: a key can be rebound, and it is remembered');
+
+    // 1c. The tune. Cannot be listened to from here, so check what can be
+    // checked: that the notes are sane and that the sequencer really schedules.
+    if (noteFreq('A4') !== 440) throw new Error(`A4 should be 440 Hz, got ${noteFreq('A4')}`);
+    if (TRACK.steps !== 128) throw new Error(`expected 8 bars of 16 steps, got ${TRACK.steps}`);
+    const voiced = [...TRACK.lead, ...TRACK.arp, ...TRACK.bass].filter(Boolean);
+    for (const n of voiced) {
+      if (!Number.isFinite(n.freq) || n.freq < 30 || n.freq > 4000) {
+        throw new Error(`a note landed outside the audible range: ${n.freq} Hz`);
+      }
+      if (!(n.dur > 0)) throw new Error('a note has no length');
+    }
+    const beforeTones = scheduledTones;
+    const tune = new (await import('../src/audio.js')).Chiptune();
+    tune.start();
+    tune.ctx.currentTime = TRACK.step * TRACK.steps; // one full loop
+    tune.schedule();
+    tune.stop();
+    const played = scheduledTones - beforeTones;
+    if (played < TRACK.steps) throw new Error(`the sequencer only scheduled ${played} voices in a full loop`);
+    console.log(`OK: title tune sequences (${voiced.length} notes per loop, ${played} voices scheduled)`);
 
     // 2. Online: pick the mode and open a match.
     click(modeButtons[2]);

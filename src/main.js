@@ -7,6 +7,7 @@ import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
 import { LocalTransport, OnlineTransport } from './net/transport.js';
 import { Signal } from './net/signal.js';
+import { Chiptune } from './audio.js';
 
 const canvas = document.getElementById('game');
 const menu = document.getElementById('menu');
@@ -17,6 +18,9 @@ const onlineSetup = document.getElementById('onlineSetup');
 const onlineStatus = document.getElementById('onlineStatus');
 const roomCode = document.getElementById('roomCode');
 const difficultyRow = document.getElementById('difficultyRow');
+
+const music = new Chiptune();
+let musicOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';
 
 const bindings = loadBindings();
 const devices = new InputDevices(bindings);
@@ -49,6 +53,7 @@ function beginMatch(state, transport) {
   pauseBox.classList.add('hidden');
   netendBox.classList.add('hidden');
   canvas.focus();
+  music.stop(); // title tune only: nobody wants a loop over ninety minutes
 }
 
 function startLocal({ players, halfSeconds }) {
@@ -80,6 +85,7 @@ function toMenu() {
   menu.classList.remove('hidden');
   pauseBox.classList.add('hidden');
   netendBox.classList.add('hidden');
+  if (musicOn) music.start();
   setOnlineStatus('');
   roomCode.classList.add('hidden');
   document.getElementById('host').disabled = false;
@@ -284,6 +290,18 @@ let mode = '1';
 let difficulty = 'normal';
 let offside = true;
 
+document.querySelectorAll('[data-music]').forEach((btn) => {
+  btn.classList.toggle('active', (btn.dataset.music === 'on') === musicOn);
+  btn.addEventListener('click', () => {
+    musicOn = btn.dataset.music === 'on';
+    document.querySelectorAll('[data-music]').forEach((b) => b.classList.toggle('active', b === btn));
+    try {
+      globalThis.localStorage?.setItem('websoccer.music', musicOn ? 'on' : 'off');
+    } catch { /* private mode: the setting just will not stick */ }
+    music.toggle(musicOn && !game.state);
+  });
+});
+
 document.querySelectorAll('[data-offside]').forEach((btn) => {
   btn.addEventListener('click', () => {
     offside = btn.dataset.offside === 'on';
@@ -429,6 +447,17 @@ window.addEventListener('keydown', (e) => {
   pauseBox.classList.toggle('hidden', !game.paused);
   game.acc = 0;
 });
+
+// Browsers refuse to make a sound until the visitor has interacted with the
+// page, so the tune waits for the first click or key press rather than being
+// started on load and silently failing.
+function startMusicOnFirstGesture() {
+  if (musicOn && !game.state) music.start();
+  window.removeEventListener('pointerdown', startMusicOnFirstGesture);
+  window.removeEventListener('keydown', startMusicOnFirstGesture);
+}
+window.addEventListener('pointerdown', startMusicOnFirstGesture);
+window.addEventListener('keydown', startMusicOnFirstGesture);
 
 // Handy when digging into network behaviour: from the console you can inspect
 // __game.transport.ping / .delay / .stalls / .desync.

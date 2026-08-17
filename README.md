@@ -92,6 +92,19 @@ timing in ticks stay exactly where they were, so nothing plays differently, it
 just gives you more time on the ball. Set it back to 1 if you want the original
 tempo.
 
+## The title tune
+
+There is no audio file. The tune on the menu is generated as you listen, with the
+Web Audio API: a pulse wave for the melody, a second one running a fast arpeggio,
+a triangle bass and filtered noise for the drums — the way the sound chips of the
+era did it. It is a few kilobytes of source in `src/audio.js`, no dependency, no
+build step, and it is an original piece written in that style rather than a
+recreation of any particular game's theme.
+
+It plays on the menu and stops at kickoff, and there is an on/off switch that is
+remembered. Browsers refuse to make a sound before the visitor has interacted
+with the page, so it starts on your first click or key press.
+
 ## CPU difficulty
 
 Playing against the CPU you can pick **Easy**, **Normal** or **Hard**. Hard is the
@@ -248,7 +261,8 @@ gives you `ping`, `delay`, `stalls` and `desync`.
 - No fouls, free kicks, penalties or offside.
 - One formation (4-3-3) and two teams; no team selection or league yet.
 - The keeper is simple: he walks to the ball and hoofs it clear, he does not dive.
-- No sound.
+- Sound is the title tune and nothing else: no whistle, no crowd, no thump when
+  you hit it.
 - Online: no rematch button (back to the menu and start again), no reconnecting
   after a drop, and messages go over the wire as JSON. Around 4 kB/s per player —
   fine, but binary would be considerably leaner.
