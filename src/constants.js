@@ -55,9 +55,15 @@ export const PLAYER_SPEED_BALL = 158; // slightly slower with the ball at your f
 export const KEEPER_SPEED = 168;
 export const PLAYER_DAMP = 0.80 ** PACE;
 
-export const SLIDE_TICKS = 26;
-export const SLIDE_SPEED = 260;
-export const SLIDE_COOLDOWN = 22;
+// A slide used to cover 55px - four player widths - and cost you 0.8 seconds
+// whether it connected or not, which made it a gamble rather than a tackle.
+// It now reaches about 90px and you are back on your feet sooner.
+export const SLIDE_TICKS = 28;
+export const SLIDE_SPEED = 380;
+export const SLIDE_DECAY = 0.955;
+export const SLIDE_COOLDOWN = 14;
+/** How near the ball a sliding boot has to come. */
+export const SLIDE_REACH = 11;
 export const DOWN_TICKS = 46;
 
 // Ball
@@ -123,6 +129,11 @@ export const HALFTIME_TICKS = 150;
 // A restart is protected until the taker touches it; this is only the backstop
 // that stops an untaken restart lasting forever.
 export const PROTECT_TICKS = 260;
+
+// How long your own choice of player stands before the automatic switch takes
+// over again. Long enough to run somewhere with him, short enough that you are
+// never stuck with the wrong man.
+export const MANUAL_HOLD_TICKS = 100;
 
 // A keeper's hold is topped up every tick he actually has the ball, so this is
 // just how long the opposition keeps its distance after he lets go of it. Keep

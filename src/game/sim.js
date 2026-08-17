@@ -2,11 +2,13 @@ import {
   AT_LIFT, AT_SIDE, AIR_DRAG, BALL_R, BOUNCE_XY, BOUNCE_Z, BTN, CHARGE_MAX,
   CONTROL_R, CONTROL_Z, CROSSBAR_H, DOWN_TICKS, DRIBBLE_DIST, DRIBBLE_LERP, DT,
   FIELD, GOAL_CELEBRATION_TICKS, GOAL_DEPTH, GOAL_W, GRAVITY, GROUND_FRICTION,
-  HALFTIME_TICKS, KEEPER_CONTROL_R, KEEPER_CONTROL_Z, KEEPER_SPEED, PEN_D, PEN_W,
+  HALFTIME_TICKS, KEEPER_CONTROL_R, KEEPER_CONTROL_Z, KEEPER_SPEED, MANUAL_HOLD_TICKS,
+  PEN_D, PEN_W,
   KEEPER_HOLD_MAX, KEEPER_HOLD_TICKS, PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED,
   PLAYER_SPEED_BALL, PROTECT_TICKS, ROLL_DRAG,
   RESTART_TICKS,
-  SIX_D, SLIDE_COOLDOWN, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY, WORLD_H, WORLD_W,
+  SIX_D, SLIDE_COOLDOWN, SLIDE_DECAY, SLIDE_REACH, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY,
+  WORLD_H, WORLD_W,
 } from '../constants.js';
 import { clamp, dist, dist2, len, norm } from '../util.js';
 import { maskToDir } from '../input.js';
@@ -298,33 +300,46 @@ function updateControlledPlayer(state, t, forced = false) {
 
   if (b.owner && b.owner.team === t) {
     team.controlled = b.owner.idx;
+    team.manualHold = 0;
+    return;
+  }
+
+  // Everyone who could take over, nearest the ball first. The keeper stays on
+  // the computer for the save itself - you take over once he has the ball,
+  // which is handled above. Being dropped into goal as a shot comes in is
+  // nobody's idea of a good time.
+  const order = [];
+  for (let i = 1; i < team.players.length; i++) {
+    if (team.players[i].down === 0) order.push(i);
+  }
+  if (!order.length) return;
+  order.sort((a, c) => dist2(b.x, b.y, team.players[a].x, team.players[a].y)
+    - dist2(b.x, b.y, team.players[c].x, team.players[c].y));
+
+  if (forced) {
+    // Step to the next man out rather than to the nearest: the automatic pick
+    // has you on the nearest almost all the time already, so a button that
+    // chooses him again does nothing. Press it repeatedly to work outwards.
+    const at = order.indexOf(team.controlled);
+    team.controlled = order[(at + 1) % order.length];
+    team.manualHold = MANUAL_HOLD_TICKS;
+    return;
+  }
+
+  // Your own choice stands for a moment before the game starts helping again.
+  if (team.manualHold > 0) {
+    team.manualHold--;
     return;
   }
 
   const cur = team.players[team.controlled];
-  // Asking for the nearest player overrides both the hysteresis below and the
-  // rule that you keep hold of someone mid-slide.
-  if (!forced && cur && cur.down === 0 && (cur.slide > 0 || cur.charging)) return;
+  if (cur && cur.down === 0 && (cur.slide > 0 || cur.charging)) return;
 
-  let best = team.controlled;
-  let bestD = Infinity;
-  for (let i = 0; i < team.players.length; i++) {
-    const p = team.players[i];
-    if (p.down > 0) continue;
-    // The keeper stays on the computer for the save itself - you only take over
-    // once he has the ball, which is handled above. Being dropped into goal at
-    // the moment a shot comes in is nobody's idea of a good time.
-    if (i === 0) continue;
-    const d = dist2(b.x, b.y, p.x, p.y);
-    if (d < bestD) {
-      bestD = d;
-      best = i;
-    }
-  }
-
+  const best = order[0];
   // Hysteresis: do not switch over a negligible difference (stops the flip-flopping).
-  if (!forced && best !== team.controlled && cur && cur.down === 0) {
+  if (best !== team.controlled && cur && cur.down === 0) {
     const curD = dist2(b.x, b.y, cur.x, cur.y);
+    const bestD = dist2(b.x, b.y, team.players[best].x, team.players[best].y);
     if (curD - bestD < 18 * 18) return;
   }
   team.controlled = best;
@@ -394,8 +409,8 @@ function movePlayer(state, t, p, mv) {
 
   if (p.slide > 0) {
     p.slide--;
-    p.vx *= 0.945;
-    p.vy *= 0.945;
+    p.vx *= SLIDE_DECAY;
+    p.vy *= SLIDE_DECAY;
     if (p.slide === 0) p.cooldown = SLIDE_COOLDOWN;
   } else {
     // A CPU team runs at a fraction of full speed on the easier settings. Human
@@ -460,13 +475,14 @@ function resolveTackles(state) {
 
       // Against the ball
       const mayTouch = b.protectedFor === null || b.protectedFor === t;
-      if (mayTouch && b.z < 20 && dist2(b.x, b.y, p.x, p.y) < (PLAYER_R + BALL_R + 6) ** 2) {
+      if (mayTouch && b.z < 20 && dist2(b.x, b.y, p.x, p.y) < (PLAYER_R + BALL_R + SLIDE_REACH) ** 2) {
         if (!b.owner || b.owner.team !== t) {
           const d = norm(p.vx, p.vy);
           const dx = d.l ? d.x : p.dirX;
           const dy = d.l ? d.y : p.dirY;
-          b.vx = dx * 300;
-          b.vy = dy * 300;
+          // Poked away rather than hammered clear, so it stays contestable.
+          b.vx = dx * 230;
+          b.vy = dy * 230;
           b.vz = 40;
           b.owner = null;
           b.lastTouch = { team: t, idx: p.idx };

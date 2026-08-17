@@ -85,11 +85,13 @@ How it feels:
   The bar under your player shows the power; at maximum it fires by itself.
 - **Aftertouch**: keep steering *after* the kick. Sideways bends the ball, along
   the ball's direction lifts it, against it makes it dip.
-- The button **without the ball** is a slide tackle.
-- You automatically control whoever is nearest the ball. The switch button asks
-  for the nearest man outright, which is worth knowing about but rarely needed:
-  measured over a match, the automatic pick already has you on the nearest player
-  97% of the time the other side has the ball.
+- The button **without the ball** is a slide tackle. It carries you about 90
+  pixels and you are up again a quarter of a second later.
+- You automatically control whoever is nearest the ball. The **switch button
+  steps to the next man out** rather than to the nearest, because the automatic
+  pick already has you on the nearest 97% of the time - a button that chose him
+  again would do nothing. Press it repeatedly to work outwards, and your choice
+  stands for a second and a half before the game starts helping again.
 - A kicked ball now meets some resistance. A firm shot used to roll on for seven
   and a half seconds and cover 88% of the pitch; it now settles in two and a half
   and covers a little over half.

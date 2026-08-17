@@ -92,6 +92,9 @@ function makeTeam(index, human, attackDir, ai) {
     attackDir, // -1 = attacks towards the top (y decreasing), +1 = towards the bottom
     controlled: 9,
     prevMask: 0,
+    // Ticks left in which the automatic switch keeps its hands off, because you
+    // asked for a particular player yourself.
+    manualHold: 0,
     players: FORMATION.map((f, i) => ({
       idx: i,
       role: f.role,
@@ -181,6 +184,7 @@ export function setupKickoff(state, kickoffTeam) {
     }
     team.controlled = 9;
     team.prevMask = 0;
+    team.manualHold = 0;
   }
 
   // The striker of the kickoff team stands next to the ball, on his own side of
