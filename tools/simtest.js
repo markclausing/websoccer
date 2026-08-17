@@ -113,19 +113,33 @@ for (const level of ['hard', 'normal', 'easy']) {
   console.log(`  ${level.padEnd(6)} ${r.territory.toFixed(0)}% territory, scored ${r.mine} conceded ${r.theirs}`);
 }
 
-if (levels.hard.territory < 43) {
+// Relative bounds, not absolute ones. Anything that changes the game as a whole -
+// the pace, the shape of the defence - moves all three levels together, and
+// absolute thresholds then fail for reasons that have nothing to do with the
+// difficulty ladder. What has to hold is the ordering and the gaps.
+if (levels.hard.territory < 45) {
   console.error(`FAIL: HARD does not hold its own against itself (${levels.hard.territory.toFixed(0)}% territory)`);
   process.exit(1);
 }
-if (levels.normal.territory > 44) {
-  console.error(`FAIL: NORMAL is not below HARD (${levels.normal.territory.toFixed(0)}% territory)`);
+if (levels.normal.territory > levels.hard.territory - 2) {
+  console.error(`FAIL: NORMAL is not below HARD (${levels.normal.territory.toFixed(0)}% vs ${levels.hard.territory.toFixed(0)}% territory)`);
   process.exit(1);
 }
-if (levels.easy.territory > 36) {
-  console.error(`FAIL: EASY is not easy enough (${levels.easy.territory.toFixed(0)}% territory)`);
+if (levels.easy.territory > levels.normal.territory - 5) {
+  console.error(`FAIL: EASY is not below NORMAL (${levels.easy.territory.toFixed(0)}% vs ${levels.normal.territory.toFixed(0)}% territory)`);
   process.exit(1);
 }
-console.log('OK: EASY and NORMAL are measurably weaker than HARD');
+// Territory alone undersells it: an easier side can hold the ball in midfield
+// and still be picked apart, so check the scoreline too.
+if (levels.normal.theirs <= levels.normal.mine) {
+  console.error(`FAIL: NORMAL is not losing to HARD (${levels.normal.mine}-${levels.normal.theirs})`);
+  process.exit(1);
+}
+if (levels.easy.theirs < levels.easy.mine * 2) {
+  console.error(`FAIL: EASY is not losing heavily enough to HARD (${levels.easy.mine}-${levels.easy.theirs})`);
+  process.exit(1);
+}
+console.log('OK: EASY and NORMAL are measurably weaker than HARD, on both territory and the scoreline');
 
 // --- Offside -----------------------------------------------------------------
 //

@@ -62,7 +62,16 @@ function homeSpot(state, teamIdx, i) {
   const f = FORMATION[i];
   const b = state.ball;
   const adv = advanceOf(team, b.y);
-  let yFrac = clamp(f.y + (adv - 0.5) * 0.55, 0.04, 0.95);
+  // The line moves with the ball, but retreats less eagerly than it advances,
+  // and never drops onto its own goal line. Symmetric shifting with a floor of
+  // 0.04 put the back four inside their own six yard box whenever they were
+  // pinned back, which is exactly as useless as it sounds.
+  //
+  // Do not push the floor much higher: 0.15 keeps matches at under two goals,
+  // 0.24 lets attackers run straight through for eight a match, and 0.28 for
+  // nineteen. A high line only works with defenders who know how to hold it.
+  const shift = (adv - 0.5) * (adv < 0.5 ? 0.32 : 0.55);
+  let yFrac = clamp(f.y + shift, 0.15, 0.95);
   // Stay onside while we have the ball, otherwise the forwards camp behind the
   // defence and the game becomes one long whistle.
   if (b.owner && b.owner.team === teamIdx) yFrac = holdTheLine(state, teamIdx, yFrac);
@@ -264,7 +273,7 @@ export function aiMove(state, teamIdx, i, opts = {}) {
     // 0.5. Do not raise it without measuring.
     const gy = ownGoalY(team);
     tx += (b.x - tx) * 0.18;
-    ty += (gy - ty) * (barred ? 0.15 : 0.10);
+    ty += (gy - ty) * (barred ? 0.12 : 0.06);
   }
 
   const d = norm(tx - p.x, ty - p.y);

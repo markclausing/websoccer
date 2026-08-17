@@ -1,6 +1,6 @@
 import {
-  AI_LEVELS, FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS, KICKOFF_TICKS,
-  PROTECT_TICKS, TICK_RATE,
+  AI_LEVELS, CENTER_R, FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS,
+  KICKOFF_TICKS, PROTECT_TICKS, TICK_RATE,
 } from '../constants.js';
 import { clamp } from '../util.js';
 
@@ -180,13 +180,26 @@ export function setupKickoff(state, kickoffTeam) {
     team.prevMask = 0;
   }
 
-  // The striker of the kickoff team stands next to the ball.
+  // The striker of the kickoff team stands next to the ball, on his own side of
+  // the halfway line - he used to be placed in the opponent's half.
   const taker = state.teams[kickoffTeam].players[9];
   taker.x = FIELD.cx - 12;
-  taker.y = FIELD.cy + state.teams[kickoffTeam].attackDir * 14;
+  taker.y = FIELD.cy - state.teams[kickoffTeam].attackDir * 14;
   taker.dirX = 0;
   taker.dirY = state.teams[kickoffTeam].attackDir;
   state.teams[kickoffTeam].controlled = 9;
+
+  // Everyone except the taker keeps out of the centre circle, and by the same
+  // measure ends up on his own half: the boundary is always on his own side.
+  for (const team of state.teams) {
+    for (const p of team.players) {
+      if (p === taker) continue;
+      const dx = p.x - FIELD.cx;
+      const gap = Math.sqrt(Math.max(0, (CENTER_R + 8) ** 2 - dx * dx));
+      const limit = FIELD.cy - team.attackDir * gap;
+      p.y = team.attackDir < 0 ? Math.max(p.y, limit) : Math.min(p.y, limit);
+    }
+  }
 }
 
 /** Deep copy - the basis for rollback netcode and for replay/debugging. */

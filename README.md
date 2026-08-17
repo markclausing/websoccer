@@ -75,9 +75,11 @@ kept spoiling matches:
 - At a kickoff, throw-in, corner or goal kick the opposition **has to stay off
   the ball** until the side taking it has touched it. They drop back rather than
   crowd around it.
-- Once a **keeper has the ball**, the opposition backs off instead of tackling it
-  out of his hands — but only for about six seconds, after which they may close
-  him down again.
+- At a kickoff everyone stands **in their own half** and out of the centre circle,
+  bar the player taking it.
+- Once a **keeper has the ball in his own box**, the opposition backs off instead
+  of tackling it out of his hands — for about six seconds. Carry it outside the
+  area and he is fair game like anyone else.
 - The keeper makes his own saves. You take over the moment he has the ball, so
   the clearance is yours, but you are never dropped into goal just as a shot
   comes in.

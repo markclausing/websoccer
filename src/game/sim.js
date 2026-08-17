@@ -95,6 +95,13 @@ function updateClock(state) {
 // Ball possession
 // --------------------------------------------------------------------------
 
+/** Is this player inside his own penalty area? */
+function inOwnBox(state, teamIdx, p) {
+  const team = state.teams[teamIdx];
+  const gy = team.attackDir < 0 ? FIELD.bottom : FIELD.top;
+  return Math.abs(p.y - gy) < PEN_D && Math.abs(p.x - FIELD.cx) < PEN_W / 2;
+}
+
 function canControl(state, team, p) {
   const b = state.ball;
   if (p.down > 0 || p.slide > 0 || p.cooldown > 0) return false;
@@ -121,9 +128,15 @@ function updateOwnership(state) {
     } else {
       p.holdTicks++;
       // Topped up for as long as he really has it, but not past the six second
-      // rule: after that the opposition may close him down again.
-      if (p.role === 'gk' && p.holdTicks < KEEPER_HOLD_MAX) {
-        protectFor(state, b.owner.team, 'untilPlayed', KEEPER_HOLD_TICKS);
+      // rule, and only inside his own box. Carry the ball out of the area and
+      // you are just another player with the ball - otherwise a keeper could
+      // stroll the length of the pitch untouchable.
+      if (p.role === 'gk') {
+        if (p.holdTicks < KEEPER_HOLD_MAX && inOwnBox(state, b.owner.team, p)) {
+          protectFor(state, b.owner.team, 'untilPlayed', KEEPER_HOLD_TICKS);
+        } else if (b.protectMode === 'untilPlayed') {
+          clearProtection(state);
+        }
       }
       return;
     }
@@ -163,8 +176,10 @@ function updateOwnership(state) {
       clearProtection(state);
     }
 
-    // A keeper who has gathered the ball gets to clear it in peace.
-    if (p.role === 'gk') protectFor(state, best.team, 'untilPlayed', KEEPER_HOLD_TICKS);
+    // A keeper who has gathered the ball in his own box gets to clear it in peace.
+    if (p.role === 'gk' && inOwnBox(state, best.team, p)) {
+      protectFor(state, best.team, 'untilPlayed', KEEPER_HOLD_TICKS);
+    }
   }
 }
 
