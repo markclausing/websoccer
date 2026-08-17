@@ -9,6 +9,8 @@
  * seats every time instead of shimmering on each redraw.
  */
 
+import { TINY_H, TINY_W, kitSprites } from './sprites.js';
+
 const ART_W = 240;
 const ART_H = 166;
 
@@ -25,6 +27,11 @@ const SURROUND = '#14401f';
 const LINE = '#e8f2e8';
 
 const SHIRTS = ['#d33b3b', '#2f6fd0', '#f2d43c', '#e8e8e8', '#3ad07a', '#c06de0'];
+
+// The same kits the teams wear on the pitch, so the figures below belong here.
+const HOME = { shirt: '#2f6fd0', shorts: '#1b3f7a', skin: '#e8b98a', hair: '#3a2415' };
+const AWAY = { shirt: '#d33b3b', shorts: '#7a1b1b', skin: '#8d5524', hair: '#221109' };
+const KEEPER = { shirt: '#f2d43c', shorts: '#3a3a3a', skin: '#e8b98a', hair: '#3a2415' };
 
 /** Same seed, same crowd, every time. */
 function rng(seed) {
@@ -126,11 +133,12 @@ function drawScene(g) {
     g.fillRect(x1 - 1, y, 1, 1);
   }
 
-  // Centre circle, squashed by the perspective.
+  // Centre circle, squashed by the perspective, and low enough to be seen: the
+  // menu panel sits over the middle of the picture.
   g.strokeStyle = 'rgba(232, 242, 232, 0.85)';
   g.lineWidth = 1;
   g.beginPath();
-  g.ellipse(ART_W / 2, 124.5, 26, 7, 0, 0, Math.PI * 2);
+  g.ellipse(ART_W / 2, 143.5, 34, 9, 0, 0, Math.PI * 2);
   g.stroke();
 
   // The goal at the far end: posts, bar, and a net you can see the crowd through.
@@ -158,10 +166,73 @@ function drawScene(g) {
   g.lineTo(ART_W / 2 + 40, 112.5);
   g.stroke();
 
-  // The ball on the spot, small and unmistakable.
+  // Six yard box, nested inside the penalty area.
+  g.beginPath();
+  g.moveTo(ART_W / 2 - 22, 105.5);
+  g.lineTo(ART_W / 2 - 16, 98.5);
+  g.moveTo(ART_W / 2 + 22, 105.5);
+  g.lineTo(ART_W / 2 + 16, 98.5);
+  g.moveTo(ART_W / 2 - 22, 105.5);
+  g.lineTo(ART_W / 2 + 22, 105.5);
+  g.stroke();
+
+  // Penalty spot, and the halfway line running across the near half.
+  g.fillStyle = LINE;
+  g.fillRect(ART_W / 2, 110, 1, 1);
+  for (let y = 142; y <= 144; y++) {
+    const half = halfAt(y);
+    g.fillRect(Math.round(ART_W / 2 - half), y, Math.round(half * 2), 1);
+  }
+
+  // Centre spot, right in the middle of that line.
+  g.fillRect(ART_W / 2 - 1, 142, 3, 3);
+
+  // Corner arcs at the near corners, where there is room to see them.
+  g.strokeStyle = 'rgba(232, 242, 232, 0.7)';
+  for (const side of [-1, 1]) {
+    const x = ART_W / 2 + side * halfAt(ART_H - 1);
+    g.beginPath();
+    g.arc(x, ART_H - 1, 7, 0, Math.PI * 2);
+    g.stroke();
+  }
+
+  // And the players. Small ones at the far end where the pitch is narrow, full
+  // sized ones near the bottom - the same sprite the match itself draws.
+  const home = kitSprites(HOME, 1, 'art-home');
+  const away = kitSprites(AWAY, 1, 'art-away');
+  const keeper = kitSprites(KEEPER, 1, 'art-gk');
+
+  const tiny = [
+    [keeper, ART_W / 2 + 2, 97],
+    [away, ART_W / 2 - 30, 104],
+    [home, ART_W / 2 + 34, 107],
+    [home, ART_W / 2 - 12, 112],
+    [away, ART_W / 2 + 16, 116],
+  ];
+  for (const [kit, x, y] of tiny) {
+    g.drawImage(kit.tiny, Math.round(x - TINY_W / 2), Math.round(y - TINY_H));
+  }
+
+  // Kept clear of the middle: the menu panel covers roughly a third of the
+  // picture there, and a player with his head behind it looks like a mistake.
+  const near = [
+    [away, 'right', 38, 158],
+    [home, 'up', 62, 152],
+    [home, 'down', ART_W - 62, 156],
+    [away, 'left', ART_W - 34, 150],
+    [home, 'right', ART_W / 2 - 24, ART_H - 4],
+  ];
+  for (const [kit, view, x, y] of near) {
+    const sprite = kit[view];
+    // A shadow under each, so nobody floats.
+    g.fillStyle = 'rgba(10, 30, 15, 0.4)';
+    g.fillRect(Math.round(x - 4), Math.round(y - 1), 9, 2);
+    g.drawImage(sprite, Math.round(x - sprite.width / 2), Math.round(y - sprite.height));
+  }
+
+  // The ball, just ahead of the nearest player's boot.
   g.fillStyle = '#ffffff';
-  g.fillRect(ART_W / 2 - 1, 137, 3, 2);
-  g.fillRect(ART_W / 2, 136, 1, 4);
+  g.fillRect(ART_W / 2 - 15, ART_H - 8, 3, 3);
 }
 
 function shade(r) {

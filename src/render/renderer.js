@@ -4,6 +4,7 @@ import {
 } from '../constants.js';
 import { clamp } from '../util.js';
 import { buildPitch } from './pitch.js';
+import { SPRITE_H, SPRITE_W, facing, kitSprites } from './sprites.js';
 
 const ZOOM = 1.35;
 
@@ -14,6 +15,8 @@ export class Renderer {
     this.pitch = buildPitch();
     this.cam = { x: FIELD.cx, y: FIELD.cy };
     this.shake = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
   }
 
   /** Camera follows the ball with a little lead; purely cosmetic, outside the sim. */
@@ -41,6 +44,8 @@ export class Renderer {
     this.shake *= 0.88;
     const sx = (this.shake > 0.2 ? (Math.random() - 0.5) * this.shake : 0);
     const sy = (this.shake > 0.2 ? (Math.random() - 0.5) * this.shake : 0);
+    this.shakeX = sx;
+    this.shakeY = sy;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0d3d18';
@@ -73,7 +78,7 @@ export class Renderer {
     for (const team of state.teams) {
       for (const p of team.players) {
         ctx.beginPath();
-        ctx.ellipse(p.x + 2.5, p.y + 3.5, PLAYER_R, PLAYER_R * 0.75, 0, 0, Math.PI * 2);
+        ctx.ellipse(p.x + 1.5, p.y + 4, PLAYER_R * 0.85, PLAYER_R * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -84,50 +89,38 @@ export class Renderer {
     ctx.fill();
   }
 
+  /** World point to whole screen pixels: sprites have to land on the grid. */
+  toScreen(x, y) {
+    return {
+      x: Math.round((x - this.cam.x) * ZOOM + this.canvas.width / 2 + this.shakeX),
+      y: Math.round((y - this.cam.y) * ZOOM + this.canvas.height / 2 + this.shakeY),
+    };
+  }
+
   drawPlayer(ctx, state, t, i, p) {
     const team = state.teams[t];
     const kit = i === 0 ? KEEPER_KIT[t] : TEAM_PRESETS[t];
     const isControlled = team.human && team.controlled === i;
+    const sprites = kitSprites(kit, ZOOM, `${t}-${i === 0 ? 'gk' : 'out'}`);
 
-    ctx.save();
-    ctx.translate(p.x, p.y);
-
-    if (p.down > 0) {
-      ctx.rotate(Math.PI / 3);
-      ctx.scale(1.25, 0.6);
-    } else if (p.slide > 0) {
-      ctx.rotate(Math.atan2(p.dirY, p.dirX));
-      ctx.scale(1.5, 0.72);
+    let view = facing(p.dirX, p.dirY);
+    if (p.slide > 0 || p.down > 0) {
+      view = `slide${view[0].toUpperCase()}${view.slice(1)}`;
     }
+    const sprite = sprites[view] || sprites.down;
 
-    // Shorts
-    ctx.fillStyle = kit.shorts;
-    ctx.beginPath();
-    ctx.arc(0, 0, PLAYER_R, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Shirt
-    ctx.fillStyle = kit.shirt;
-    ctx.beginPath();
-    ctx.arc(-p.dirX * 1.6, -p.dirY * 1.6, PLAYER_R - 1.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, PLAYER_R, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Head, facing the way the player runs
-    ctx.fillStyle = kit.skin;
-    ctx.beginPath();
-    ctx.arc(p.dirX * 2.4, p.dirY * 2.4, 3.1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.beginPath();
-    ctx.arc(p.dirX * 2.4, p.dirY * 2.4, 3.1, 0, Math.PI);
-    ctx.fill();
-
+    // Drawn in screen space, on whole pixels, so the art stays square.
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    const at = this.toScreen(p.x, p.y);
+    ctx.drawImage(
+      sprite,
+      at.x - Math.round(sprite.width / 2),
+      // Feet a little below the point the simulation tracks, so he stands on it.
+      at.y - Math.round(sprite.height * 0.60),
+    );
+    ctx.imageSmoothingEnabled = true;
     ctx.restore();
 
     if (isControlled) {

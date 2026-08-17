@@ -121,6 +121,19 @@ timing in ticks stay exactly where they were, so nothing plays differently, it
 just gives you more time on the ball. Set it back to 1 if you want the original
 tempo.
 
+## The players
+
+They are pixel art: a small figure defined as a grid of characters and coloured
+per kit, in `src/render/sprites.js`. Four views - towards you, away, and in
+profile either way - with the slide made by turning the profile a quarter, which
+is exact for a grid. A dark outline traces the whole figure, without which a blue
+shirt on a green pitch at this size is mostly a smudge.
+
+The sprites are baked at the zoom the game runs at and then blitted on whole
+screen pixels. Drawing them in world space would put their edges on fractions of
+a pixel and the resampler would soften away the one thing that makes them pixel
+art. The same figure walks around the picture behind the menu.
+
 ## The title screen
 
 The picture behind the menu is drawn, not loaded: a night match seen from the top
@@ -129,7 +142,10 @@ smoothing switched off, which is what keeps the pixels square instead of turning
 it into a blurred illustration. Floodlight pylons with their glow spilling onto
 the sky, a crowd of single pixels placed by a seeded generator so the same faces
 sit in the same seats every time, and a pitch tapering away towards the goal.
-It lives in `src/render/titlescreen.js`.
+There are players on it too - the same sprite the match draws, small ones at the
+far end where the pitch is narrow and full sized ones near the bottom - along
+with the halfway line, centre circle and spot, penalty area, six yard box and
+corner arcs. It lives in `src/render/titlescreen.js`.
 
 ## The title tune
 
