@@ -16,6 +16,7 @@ import { aiMove, aiWantsSlide } from './ai.js';
 import { chargeToShot, kickBall } from './kick.js';
 import { setupKickoff } from './state.js';
 import { clearOffside } from './offside.js';
+import { assistedAim } from './aim.js';
 
 /**
  * The only place where the match changes.
@@ -375,9 +376,11 @@ function humanIntent(state, t, i, mask) {
       p.charge++;
       if (!fire || p.charge >= CHARGE_MAX) {
         const shot = chargeToShot(p.charge);
+        // Nudged towards a team-mate, unless you are aiming at their goal.
+        const aimed = assistedAim(state, t, i, dir.x || p.dirX, dir.y || p.dirY);
         intent.kick = {
-          dx: dir.x || p.dirX,
-          dy: dir.y || p.dirY,
+          dx: aimed.x,
+          dy: aimed.y,
           power: shot.power,
           lift: shot.lift,
         };

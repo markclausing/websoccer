@@ -5,6 +5,7 @@
 import { advanceOf, createMatch, hashState } from '../src/game/state.js';
 import { step } from '../src/game/sim.js';
 import { kickBall } from '../src/game/kick.js';
+import { assistedAim } from '../src/game/aim.js';
 import { FIELD, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
 
 function runMatch(seed, ticks) {
@@ -190,6 +191,59 @@ function offsidePass(strikerY, offside = true) {
   }
   return 'nothing happened';
 }
+
+// --- Assisted aim -------------------------------------------------------------
+//
+// A pass aimed near a team-mate should bend towards him; a shot at goal must
+// come out exactly as aimed, even with a team-mate near the line of fire.
+
+function aimTest({ from, to, mateAt, aim }) {
+  const state = createMatch({ seed: 3, halfSeconds: 120, humans: [true, false] });
+  const p = state.teams[0].players[6];
+  const mate = state.teams[0].players[8];
+  state.teams[0].players.forEach((q, i) => {
+    if (i !== 6 && i !== 8) {
+      q.x = FIELD.left + 20;
+      q.y = FIELD.bottom - 20;
+    }
+  });
+  p.x = from.x;
+  p.y = from.y;
+  mate.x = p.x + Math.cos(mateAt) * to;
+  mate.y = p.y + Math.sin(mateAt) * to;
+  const out = assistedAim(state, 0, 6, Math.cos(aim), Math.sin(aim));
+  return Math.atan2(out.y, out.x);
+}
+
+const deg = (rad) => (rad * 180) / Math.PI;
+const sideways = aimTest({
+  from: { x: FIELD.cx, y: FIELD.cy }, to: 200, mateAt: -0.31, aim: 0,
+});
+const wide = aimTest({
+  from: { x: FIELD.cx, y: FIELD.cy }, to: 200, mateAt: -0.87, aim: 0,
+});
+const shot = aimTest({
+  from: { x: FIELD.cx + 30, y: FIELD.top + 190 }, to: 130, mateAt: -2.14, aim: -1.77,
+});
+
+console.log('');
+console.log(`Assisted aim: pass aimed at 0 deg with a mate at -18 -> ${deg(sideways).toFixed(1)} deg`);
+console.log(`              mate out at -50 deg -> ${deg(wide).toFixed(1)} deg`);
+console.log(`              shot aimed at ${deg(-1.77).toFixed(1)} deg -> ${deg(shot).toFixed(1)} deg`);
+
+if (!(deg(sideways) < -8 && deg(sideways) > -18)) {
+  console.error(`FAIL: the pass was not bent towards the team-mate (${deg(sideways).toFixed(1)} deg)`);
+  process.exit(1);
+}
+if (Math.abs(deg(wide)) > 0.01) {
+  console.error(`FAIL: a team-mate well outside the cone still pulled the pass (${deg(wide).toFixed(1)} deg)`);
+  process.exit(1);
+}
+if (Math.abs(deg(shot) - deg(-1.77)) > 0.01) {
+  console.error(`FAIL: a shot at goal was bent off target (${deg(shot).toFixed(1)} deg)`);
+  process.exit(1);
+}
+console.log('OK: passes are helped along and shots are left exactly as aimed');
 
 // --- Goal kick ----------------------------------------------------------------
 //

@@ -83,6 +83,13 @@ How it feels:
 
 - **Tap** for a pass along the ground, **hold** for something harder and higher.
   The bar under your player shows the power; at maximum it fires by itself.
+- **Passes are helped along**: aim roughly at a team-mate and the ball bends
+  three quarters of the way towards him. A **shot is never touched** - and what
+  decides which is which is not how hard you hit it but where you point: if the
+  line you are aiming along crosses the goal line inside the posts, it is an
+  attempt on goal and the assist keeps out of it. Judging by power would have
+  ruined the one kick where accuracy matters most, since a hard flat ball across
+  the box is struck exactly like a shot.
 - **Aftertouch**: keep steering *after* the kick. Sideways bends the ball, along
   the ball's direction lifts it, against it makes it dip.
 - The button **without the ball** is a slide tackle. It carries you about 90
