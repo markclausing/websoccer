@@ -13,11 +13,11 @@ import { chargeToShot, kickBall } from './kick.js';
 import { setupKickoff } from './state.js';
 
 /**
- * De enige plek waar de wedstrijd verandert.
- * Puur: zelfde state + zelfde inputs -> zelfde resultaat, op elke machine.
+ * The only place where the match changes.
+ * Pure: same state + same inputs -> same result, on every machine.
  *
- * @param {object} state   wedstrijdtoestand (wordt ter plekke aangepast)
- * @param {number[]} inputs bitmask per team-slot, bv. [0b10011, 0]
+ * @param {object} state    match state (mutated in place)
+ * @param {number[]} inputs one bitmask per team slot, e.g. [0b10011, 0]
  */
 export function step(state, inputs) {
   if (state.phase === 'fulltime') return state;
@@ -41,7 +41,7 @@ export function step(state, inputs) {
 }
 
 // --------------------------------------------------------------------------
-// Wedstrijdfases
+// Match phases
 // --------------------------------------------------------------------------
 
 function advancePhase(state) {
@@ -79,16 +79,16 @@ function updateClock(state) {
   if (state.half === 1) {
     state.phase = 'halftime';
     state.phaseTimer = HALFTIME_TICKS;
-    state.message = 'RUST';
+    state.message = 'HALF TIME';
   } else {
     state.phase = 'fulltime';
     state.phaseTimer = 0;
-    state.message = 'EINDE';
+    state.message = 'FULL TIME';
   }
 }
 
 // --------------------------------------------------------------------------
-// Balbezit
+// Ball possession
 // --------------------------------------------------------------------------
 
 function canControl(state, team, p) {
@@ -142,19 +142,19 @@ function updateOwnership(state) {
 }
 
 // --------------------------------------------------------------------------
-// Spelers
+// Players
 // --------------------------------------------------------------------------
 
 const NO_INTENT = { x: 0, y: 0, kick: null, slide: false };
 
 /**
- * Drie fases per tick. De splitsing is niet cosmetisch: als je team 0 volledig
- * afhandelt voordat team 1 nadenkt, reageert team 1 op verse posities en team 0
- * op verouderde. Dat gaf team 1 meetbaar meer doelpunten. Nu bepalen alle 22
- * spelers hun intentie op exact dezelfde snapshot.
+ * Three phases per tick. The split is not cosmetic: handling team 0 completely
+ * before team 1 gets to think means team 1 reacts to fresh positions and team 0
+ * to stale ones. That measurably won team 1 more goals. Now all 22 players
+ * decide their intent from the exact same snapshot.
  */
 function updatePlayers(state, inputs, frozen) {
-  // Fase 0: timers die de besluitvorming beïnvloeden.
+  // Phase 0: timers that feed into the decisions below.
   for (const team of state.teams) {
     for (const p of team.players) {
       if (p.cooldown > 0) p.cooldown--;
@@ -164,7 +164,7 @@ function updatePlayers(state, inputs, frozen) {
     if (state.teams[t].human) updateControlledPlayer(state, t);
   }
 
-  // Fase 1: intenties bepalen (leest de gedeelde snapshot).
+  // Phase 1: decide intents (reads the shared snapshot).
   const intents = [[], []];
   for (let t = 0; t < 2; t++) {
     const team = state.teams[t];
@@ -189,7 +189,7 @@ function updatePlayers(state, inputs, frozen) {
     }
   }
 
-  // Fase 2: acties uitvoeren (hoogstens één speler heeft de bal, dus hoogstens één trap).
+  // Phase 2: carry out actions (at most one player owns the ball, so at most one kick).
   for (let t = 0; t < 2; t++) {
     const team = state.teams[t];
     for (let i = 0; i < team.players.length; i++) {
@@ -199,7 +199,7 @@ function updatePlayers(state, inputs, frozen) {
     }
   }
 
-  // Fase 3: bewegen.
+  // Phase 3: move.
   for (let t = 0; t < 2; t++) {
     const team = state.teams[t];
     for (let i = 0; i < team.players.length; i++) {
@@ -221,7 +221,7 @@ function updatePlayers(state, inputs, frozen) {
   }
 }
 
-/** Auto-switch: je bestuurt altijd de speler met de bal, anders de dichtstbijzijnde. */
+/** Auto-switch: you always control the player on the ball, otherwise the nearest one. */
 function updateControlledPlayer(state, t) {
   const team = state.teams[t];
   const b = state.ball;
@@ -250,7 +250,7 @@ function updateControlledPlayer(state, t) {
     }
   }
 
-  // Hysterese: niet wisselen bij een verwaarloosbaar verschil (voorkomt geflipflop).
+  // Hysteresis: do not switch over a negligible difference (stops the flip-flopping).
   if (best !== team.controlled && cur && cur.down === 0) {
     const curD = dist2(b.x, b.y, cur.x, cur.y);
     if (curD - bestD < 18 * 18) return;
@@ -271,11 +271,11 @@ function humanIntent(state, t, i, mask) {
 
   if (fire && !prevFire) {
     if (owns) {
-      // Knop ingedrukt met bal: kracht opbouwen tot je loslaat.
+      // Button pressed while on the ball: build up power until release.
       p.charging = true;
       p.charge = 0;
     } else if (p.cooldown === 0 && p.slide === 0) {
-      // Knop zonder bal: sliding.
+      // Button without the ball: slide tackle.
       intent.slide = true;
     }
   }
@@ -349,7 +349,7 @@ function integratePlayer(p) {
   p.y = clamp(p.y + p.vy * DT, 8, WORLD_H - 8);
 }
 
-/** Spelers mogen niet door elkaar heen lopen. */
+/** Players cannot walk through each other. */
 function separatePlayers(state) {
   const all = [];
   for (const team of state.teams) for (const p of team.players) all.push(p);
@@ -375,14 +375,14 @@ function separatePlayers(state) {
   }
 }
 
-/** Slidings: bal wegtikken en tegenstanders neerhalen. */
+/** Slide tackles: poke the ball away and bring opponents down. */
 function resolveTackles(state) {
   const b = state.ball;
   for (let t = 0; t < 2; t++) {
     for (const p of state.teams[t].players) {
       if (p.slide <= 0) continue;
 
-      // Tegen de bal
+      // Against the ball
       if (b.z < 20 && dist2(b.x, b.y, p.x, p.y) < (PLAYER_R + BALL_R + 6) ** 2) {
         if (!b.owner || b.owner.team !== t) {
           const d = norm(p.vx, p.vy);
@@ -398,7 +398,7 @@ function resolveTackles(state) {
         }
       }
 
-      // Tegen tegenstanders
+      // Against opponents
       const opp = state.teams[1 - t];
       for (const o of opp.players) {
         if (o.down > 0) continue;
@@ -414,7 +414,7 @@ function resolveTackles(state) {
 }
 
 // --------------------------------------------------------------------------
-// Bal
+// Ball
 // --------------------------------------------------------------------------
 
 function updateBall(state, inputs) {
@@ -455,7 +455,7 @@ function updateBall(state, inputs) {
   b.vx *= damp;
   b.vy *= damp;
 
-  // Effect: draait de snelheidsvector langzaam (Sensible-curve).
+  // Spin: slowly rotates the velocity vector, which is what bends the ball.
   if (Math.abs(b.spin) > 1e-4) {
     const c = Math.cos(b.spin * DT);
     const s = Math.sin(b.spin * DT);
@@ -487,8 +487,8 @@ function updateBall(state, inputs) {
 }
 
 /**
- * Aftertouch: na een trap kan de speler die trapte de bal nog bijsturen.
- * Zijwaarts t.o.v. de balrichting = curve, vooruit/achteruit = lift of dip.
+ * Aftertouch: after a kick, whoever took it can still steer the ball.
+ * Sideways relative to the ball = curve, along the ball = lift or dip.
  */
 function applyAftertouch(state, inputs) {
   const b = state.ball;
@@ -508,8 +508,8 @@ function applyAftertouch(state, inputs) {
   const bd = norm(b.vx, b.vy);
   if (bd.l < 20) return;
 
-  const cross = bd.x * dir.y - bd.y * dir.x; // zijwaartse component
-  const dot = bd.x * dir.x + bd.y * dir.y; // component langs de bal
+  const cross = bd.x * dir.y - bd.y * dir.x; // sideways component
+  const dot = bd.x * dir.x + bd.y * dir.y; // component along the ball
 
   b.vx += -bd.y * cross * AT_SIDE * DT;
   b.vy += bd.x * cross * AT_SIDE * DT;
@@ -523,7 +523,7 @@ function applyAftertouch(state, inputs) {
 }
 
 // --------------------------------------------------------------------------
-// Spelregels
+// Rules of the game
 // --------------------------------------------------------------------------
 
 function checkGoal(state) {
@@ -556,33 +556,33 @@ function checkOutOfPlay(state) {
   const b = state.ball;
   const lastTeam = b.lastTouch ? b.lastTouch.team : state.kickoffTeam;
 
-  // Zijlijn -> inworp
+  // Touchline -> throw-in
   if (b.x < FIELD.left - BALL_R || b.x > FIELD.right + BALL_R) {
     const x = b.x < FIELD.cx ? FIELD.left + 4 : FIELD.right - 4;
     const y = clamp(b.y, FIELD.top + 24, FIELD.bottom - 24);
-    setRestart(state, x, y, 1 - lastTeam, 'INWORP');
+    setRestart(state, x, y, 1 - lastTeam, 'THROW-IN');
     return;
   }
 
   if (b.y >= FIELD.top - BALL_R && b.y <= FIELD.bottom + BALL_R) return;
 
-  // Achterlijn -> hoekschop of doeltrap
+  // Goal line -> corner or goal kick
   const topEnd = b.y < FIELD.cy;
   const goalY = topEnd ? FIELD.top : FIELD.bottom;
   const defender = state.teams[0].attackDir < 0
-    ? (topEnd ? 1 : 0) // team 0 valt boven aan, dus boven verdedigt team 1
+    ? (topEnd ? 1 : 0) // team 0 attacks the top, so team 1 defends the top
     : (topEnd ? 0 : 1);
 
   if (lastTeam === defender) {
-    // Hoekschop voor de aanvallende ploeg
+    // Corner for the attacking side
     const x = b.x < FIELD.cx ? FIELD.left + 8 : FIELD.right - 8;
     const y = topEnd ? FIELD.top + 8 : FIELD.bottom - 8;
-    setRestart(state, x, y, 1 - defender, 'HOEKSCHOP');
+    setRestart(state, x, y, 1 - defender, 'CORNER');
   } else {
-    // Doeltrap voor de verdedigende ploeg
+    // Goal kick for the defending side
     const x = FIELD.cx + (b.x < FIELD.cx ? -58 : 58);
     const y = topEnd ? FIELD.top + SIX_D : FIELD.bottom - SIX_D;
-    setRestart(state, x, y, defender, 'DOELTRAP');
+    setRestart(state, x, y, defender, 'GOAL KICK');
   }
 }
 
@@ -603,7 +603,7 @@ function setRestart(state, x, y, teamIdx, message) {
   state.restartTeam = teamIdx;
   state.message = message;
 
-  // Dichtstbijzijnde veldspeler neemt de bal.
+  // Nearest outfield player takes it.
   const team = state.teams[teamIdx];
   let takerIdx = 1;
   let bestD = Infinity;
@@ -630,7 +630,7 @@ function setRestart(state, x, y, teamIdx, message) {
   taker.down = 0;
   team.controlled = takerIdx;
 
-  // Tegenstanders op afstand zetten.
+  // Push opponents back to a fair distance.
   const opp = state.teams[1 - teamIdx];
   for (const o of opp.players) {
     const d = dist(o.x, o.y, x, y);

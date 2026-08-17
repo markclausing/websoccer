@@ -1,157 +1,153 @@
-# Bijdragen aan WebSoccer
+# Contributing to WebSoccer
 
-Leuk dat je meedoet. Dit document beschrijft hoe het project in elkaar zit, welke
-regels er zijn, en hoe je een wijziging ingediend krijgt.
+Good to have you here. This document covers how the project fits together, what
+the rules are, and how to get a change merged.
 
-Nieuw hier? Begin bij [INSTALL.md](INSTALL.md) om het draaiend te krijgen, en
-speel eerst een paar wedstrijden — de meeste vragen over de code beantwoorden
-zichzelf zodra je het spel gevoeld hebt.
+New here? Start with [INSTALL.md](INSTALL.md) to get it running, and play a few
+matches first — most questions about the code answer themselves once you have
+felt the game.
 
-## De vorm van het project
+## The shape of the project
 
-Twee dingen bepalen bijna elke beslissing in deze codebase:
+Two things drive almost every decision in this codebase:
 
-**1. Geen dependencies, geen buildstap.** Je klont het project en `npm start`
-werkt. Geen bundler, geen transpiler, geen `node_modules`. De browser laadt de
-ES-modules rechtstreeks. Dat betekent ook dat er geen framework in komt; als iets
-alleen met een library kan, is het waarschijnlijk het overwegen waard of we het
-wel willen.
+**1. No dependencies, no build step.** You clone the project and `npm start`
+works. No bundler, no transpiler, no `node_modules`. The browser loads the ES
+modules directly. That also means no framework is going in; if something can only
+be done with a library, it is worth asking whether we want it at all.
 
-**2. De simulatie is deterministisch.** Dat is geen nettigheid maar de spil van
-de online multiplayer. Zie hieronder.
+**2. The simulation is deterministic.** That is not tidiness, it is the pivot the
+online multiplayer turns on. See below.
 
-## De belangrijkste regel: determinisme
+## The most important rule: determinism
 
-Online multiplayer werkt met **lockstep**: beide machines draaien dezelfde
-simulatie en sturen elkaar alleen hun knoppen door. Als dezelfde begintoestand
-plus dezelfde inputs op twee machines een verschillende uitkomst geven, gaan de
-spelers stilletjes een andere wedstrijd spelen. Alles in `src/game/**` moet dus
-puur zijn.
+Online multiplayer runs on **lockstep**: both machines run the same simulation
+and only send each other their buttons. If the same starting state plus the same
+inputs produce a different outcome on two machines, the players quietly end up
+playing different matches. So everything in `src/game/**` must be pure.
 
-In `src/game/**` mag niet:
+Inside `src/game/**` you may not use:
 
-- `Math.random()` — gebruik `randRange(state, lo, hi)` of `nextRandom(state)` uit
-  `src/util.js`, die trekken uit `state.rng`;
-- `Date.now()` of `performance.now()`;
-- iteratie waarvan de volgorde niet vastligt (`Set`, `Object.keys()` over
-  dynamische sleutels);
-- iets uit de DOM of het netwerk lezen.
+- `Math.random()` — use `randRange(state, lo, hi)` or `nextRandom(state)` from
+  `src/util.js`, which draw from `state.rng`;
+- `Date.now()` or `performance.now()`;
+- iteration whose order is not fixed (`Set`, `Object.keys()` over dynamic keys);
+- anything read from the DOM or the network.
 
-En verder:
+And beyond that:
 
-- **Rendering leest alleen.** `src/render/**` mag nooit in `state` schrijven.
-  Camera-smoothing en schermschudden staan daarom bewust buiten de simulatie —
-  cosmetica mag per machine verschillen, de wedstrijd niet.
-- **Nieuwe willekeur hoort in de simulatie**, niet in de aanroeper.
-- **De AI hoort ín de simulatie.** Zou de CPU buiten `step()` beslissen, dan
-  nemen twee machines verschillende beslissingen.
-- **Eén tick verloopt in drie fases**: eerst bepalen alle 22 spelers hun intentie
-  op dezelfde snapshot, dan worden trappen uitgevoerd, dan wordt er bewogen. Zet
-  je een beslissing per ongeluk vóór de intentiefase, dan reageert het ene team
-  op verse posities en het andere op verouderde. Dat is niet theoretisch: het gaf
-  team 1 meetbaar meer doelpunten (114 om 66 over 60 CPU-wedstrijden).
+- **Rendering only reads.** `src/render/**` must never write to `state`. Camera
+  smoothing and screen shake sit outside the simulation for exactly this reason —
+  cosmetics may differ per machine, the match may not.
+- **New randomness belongs in the simulation**, not in the caller.
+- **The AI belongs inside the simulation.** If the CPU decided outside `step()`,
+  two machines would make different decisions.
+- **One tick runs in three phases**: first all 22 players decide their intent from
+  the same snapshot, then kicks are carried out, then everyone moves. Move a
+  decision in front of the intent phase by accident and one team reacts to fresh
+  positions while the other reacts to stale ones. That is not theoretical: it
+  measurably won team 1 more goals (114 to 66 across 60 CPU matches).
 
-`npm run test:sim` en `npm run test:net` vangen overtredingen hiervan, maar niet
-altijd meteen — determinismebugs kunnen zeldzaam zijn. Denk er dus even bij na.
+`npm run test:sim` and `npm run test:net` catch violations of this, though not
+always straight away — determinism bugs can be rare. So give it a thought.
 
-## Waar staat wat
+## Where things live
 
 ```
-src/constants.js      afmetingen, snelheden, spelregelconstanten - begin hier
-                      als je aan het spelgevoel wilt sleutelen
-src/util.js           wiskunde + deterministische PRNG
-src/input.js          toetsenbord/gamepad -> bitmask van 5 bits
-src/main.js           menu, vaste-tijdstap game-loop
-src/game/state.js     wedstrijdtoestand, formaties, aftrap, clone + hash
-src/game/sim.js       step(): de enige plek waar de wedstrijd verandert
-src/game/ai.js        CPU-logica
-src/game/kick.js      gedeelde trapfunctie voor mens en CPU
-src/render/pitch.js   het veld (één keer getekend naar een offscreen canvas)
-src/render/renderer.js camera, spelers, bal, HUD, radar, netwerkstatus
-src/net/signal.js     WebSocket-client: kamers en berichtroutering
-src/net/transport.js  LocalTransport en OnlineTransport (lockstep)
-server/relay.js       statische bestanden + kamers + inputs doorgeven
-server/ws.js          WebSocket-protocol met de hand
-tools/                de tests
+src/constants.js      dimensions, speeds, rule constants - start here if you
+                      want to tune how the game feels
+src/util.js           maths + deterministic PRNG
+src/input.js          keyboard/gamepad -> 5-bit mask
+src/main.js           menu, fixed-timestep game loop
+src/game/state.js     match state, formations, kickoff, clone + hash
+src/game/sim.js       step(): the only place where the match changes
+src/game/ai.js        CPU logic
+src/game/kick.js      shared kick function for human and CPU
+src/render/pitch.js   the pitch (drawn once onto an offscreen canvas)
+src/render/renderer.js camera, players, ball, HUD, radar, network status
+src/net/signal.js     WebSocket client: rooms and message routing
+src/net/transport.js  LocalTransport and OnlineTransport (lockstep)
+server/relay.js       static files + rooms + passing inputs along
+server/ws.js          WebSocket protocol by hand
+tools/                the tests
 ```
 
-De game-loop praat met een transport via vier methodes: `sample(tick)`,
-`ready(tick)`, `poll(tick)` en `afterStep(state)`. Lokaal en online implementeren
-allebei diezelfde vier. Wil je een nieuwe manier van spelen toevoegen (denk aan
-replays of een AI-tegen-AI-modus), dan is een nieuw transport meestal het
-antwoord — niet een aanpassing in `sim.js`.
+The game loop talks to a transport through four methods: `sample(tick)`,
+`ready(tick)`, `poll(tick)` and `afterStep(state)`. Local and online both
+implement those same four. If you want to add a new way of playing (replays, say,
+or an AI-versus-AI mode), a new transport is usually the answer — not a change in
+`sim.js`.
 
 ## Tests
 
 ```bash
-npm test           # alle drie
-npm run test:sim   # speelt hele wedstrijden headless; controleert determinisme
-npm run test:net   # start de relay, koppelt twee echte clients, speelt 100s en
-                   # controleert of beide kanten dezelfde stand berekenen
-npm run test:ui    # draait main.js tegen een namaak-DOM: menu, lokale wedstrijd,
-                   # online wedstrijd, en een weggevallen tegenstander
+npm test           # all three
+npm run test:sim   # plays whole matches headless; checks determinism
+npm run test:net   # starts the relay, connects two real clients, plays 100s and
+                   # checks both sides compute the same match
+npm run test:ui    # runs main.js against a fake DOM: menu, local match, online
+                   # match, and an opponent who disappears
 ```
 
-Welke draai je wanneer:
+Which one to run when:
 
-| Je raakt aan...                    | Draai minimaal    |
-| ---------------------------------- | ----------------- |
+| You touched...                     | Run at least            |
+| ---------------------------------- | ----------------------- |
 | `src/game/**`, `src/constants.js`  | `test:sim` + `test:net` |
 | `src/net/**`, `server/**`          | `test:net` + `test:ui`  |
 | `src/main.js`, `src/render/**`     | `test:ui`               |
-| iets anders                        | `npm test`              |
+| anything else                      | `npm test`              |
 
-Verander je het spelgevoel (snelheden, trapkracht, AI), draai dan `test:sim` en
-kijk of het aantal doelpunten per wedstrijd redelijk blijft — rond de 2 à 3 per
-wedstrijd van 2×2 minuten. Een balans die volledig instort is meestal een teken
-dat er iets stuk is en niet alleen dat het "anders speelt".
+If you change how the game feels (speeds, kick power, AI), run `test:sim` and see
+whether the goals per match stay sane — around 2 to 3 per 2×2 minute match. A
+balance that collapses completely is usually a sign something is broken, not just
+that it plays differently.
 
-## Codestijl
+## Code style
 
-Er staat bewust geen linter in de weg; houd het simpel en consistent met wat er
-al staat:
+There is deliberately no linter in your way; keep it simple and consistent with
+what is already there:
 
-- ES-modules, 2 spaties inspringen, puntkomma's, enkele aanhalingstekens.
-- Namen van variabelen en functies in het Engels, **commentaar en gebruikersteksten
-  in het Nederlands** — dat is nu consistent zo.
-- Commentaar legt uit *waarom*, niet *wat*. De regel die uitlegt waarom een tick
-  in drie fases uiteenvalt is nuttig; `// verhoog de teller` niet.
-- Magische getallen die het spelgevoel bepalen horen in `src/constants.js`, met
-  een naam.
+- ES modules, 2-space indentation, semicolons, single quotes.
+- Everything in English: identifiers, comments and player-facing text.
+- Comments explain *why*, not *what*. The line explaining why a tick splits into
+  three phases earns its keep; `// increment the counter` does not.
+- Magic numbers that shape how the game feels belong in `src/constants.js`, with
+  a name.
 
-## Een wijziging indienen
+## Submitting a change
 
-1. Fork het project en maak een branch: `git checkout -b korte-beschrijving`.
-2. Maak je wijziging en draai de relevante tests (zie de tabel hierboven).
-3. Commit met een korte beschrijvende regel in de gebiedende wijs: `voeg
-   strafschoppen toe`, niet `strafschoppen toegevoegd`.
-4. Open een pull request. Beschrijf **wat** je verandert en **waarom**, en bij
-   een wijziging in het spelgevoel: hoe het speelt. Een korte opname of een paar
-   regels uit `test:sim` zeggen meer dan een lange uitleg.
+1. Fork the project and make a branch: `git checkout -b short-description`.
+2. Make your change and run the relevant tests (see the table above).
+3. Commit with a short descriptive line in the imperative: `add penalties`, not
+   `added penalties`.
+4. Open a pull request. Describe **what** you are changing and **why**, and for a
+   change in how the game feels: how it plays. A short recording or a few lines
+   of `test:sim` output say more than a long explanation.
 
-Weet je niet zeker of iets past? Open eerst een issue. Dat scheelt werk aan
-allebei de kanten.
+Not sure whether something fits? Open an issue first. That saves work on both
+sides.
 
-## Ideeën die openstaan
+## Open ideas
 
-De README sluit af met een lijstje "Wat er nog niet is". De meest voor de hand
-liggende brokken werk:
+The README closes with a list of "What is not there yet". The most obvious chunks
+of work:
 
-- **Overtredingen en vrije trappen.** Er is nu geen scheidsrechter; slidings
-  mogen alles. Strafschoppen zouden ook wedstrijden kunnen beslissen.
-- **De keeper.** Die loopt naar de bal en trapt uit, meer niet. Duiken, vangen en
-  positiespel op de lijn zijn allemaal open.
-- **Teams en formaties.** Er is één formatie (4-3-3) en er zijn twee teams. Een
-  teamkeuze, andere formaties of een competitie: allemaal welkom.
-- **Binair netwerkprotocol.** De inputs gaan nu als JSON over de lijn, ongeveer
-  4 kB/s per speler. Dat kan een factor tien zuiniger.
-- **WebRTC.** Alles loopt nu via de relay. Peer-to-peer zou de latency verlagen;
-  de relay blijft dan nodig om spelers te koppelen.
-- **Revanche en herverbinden.** Na een wedstrijd moet je nu terug naar het menu,
-  en een weggevallen verbinding is definitief.
-- **Geluid.** Er is helemaal niets.
+- **Fouls and free kicks.** There is no referee right now; slide tackles are
+  allowed to do anything. Penalties could decide matches too.
+- **The keeper.** He walks to the ball and hoofs it clear, and that is it. Diving,
+  catching and positioning on the line are all wide open.
+- **Teams and formations.** There is one formation (4-3-3) and there are two
+  teams. Team selection, other formations or a league: all welcome.
+- **A binary network protocol.** Inputs currently go over the wire as JSON, around
+  4 kB/s per player. That could be ten times leaner.
+- **WebRTC.** Everything goes through the relay right now. Peer to peer would
+  lower latency; the relay would still be needed to introduce the players.
+- **Rematch and reconnect.** After a match you have to go back to the menu, and a
+  dropped connection is final.
+- **Sound.** There is none at all.
 
-## Licentie
+## Licence
 
-Bijdragen vallen onder dezelfde [MIT-licentie](LICENSE) als de rest van het
+Contributions fall under the same [MIT licence](LICENSE) as the rest of the
 project.

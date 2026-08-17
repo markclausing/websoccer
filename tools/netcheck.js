@@ -1,9 +1,9 @@
-// End-to-end netwerktest zonder browser.
+// End-to-end network test without a browser.
 //
-// Start de echte relay-server, verbindt twee echte clients, laat ze een hele
-// wedstrijd tegen elkaar spelen met gescripte input, en controleert daarna of
-// beide machines exact dezelfde wedstrijd hebben gesimuleerd. Dat is precies
-// waar lockstep op staat of valt.
+// Starts the real relay server, connects two real clients, has them play a whole
+// match against each other with scripted input, and then checks that both
+// machines simulated the exact same match. That is what lockstep stands or
+// falls on.
 
 import { spawn } from 'node:child_process';
 import { createMatch, hashState } from '../src/game/state.js';
@@ -13,16 +13,16 @@ import { OnlineTransport } from '../src/net/transport.js';
 import { BTN } from '../src/constants.js';
 
 const PORT = 5199;
-const TICKS = 60 * 100; // 100 seconden wedstrijd
+const TICKS = 60 * 100; // 100 seconds of match
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Nep-invoerapparaat: een reproduceerbaar knoppenpatroon per speler. */
+/** Fake input device: a reproducible button pattern per player. */
 function scriptedDevice(seed) {
   return {
     tick: 0,
     mask() {
-      // Deterministische pseudo-input die per speler verschilt en varieert.
+      // Deterministic pseudo-input that differs per player and varies over time.
       const t = Math.floor(this.tick / 11) + seed * 977;
       const h = Math.imul(t ^ (t >>> 15), 0x2c1b3c6d) >>> 0;
       let m = 0;
@@ -39,10 +39,10 @@ function scriptedDevice(seed) {
 async function waitFor(check, what, timeoutMs = 8000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
-    if (await check()) return; // await: een async check geeft een Promise, en die is altijd truthy
+    if (await check()) return; // await: an async check returns a Promise, which is always truthy
     await sleep(10);
   }
-  throw new Error(`Time-out bij: ${what}`);
+  throw new Error(`Timed out: ${what}`);
 }
 
 async function main() {
@@ -60,8 +60,8 @@ async function main() {
       } catch {
         return false;
       }
-    }, 'server start niet');
-    console.log(`OK: relay draait op poort ${PORT} en serveert de pagina`);
+    }, 'server did not start');
+    console.log(`OK: relay is up on port ${PORT} and serving the page`);
 
     const url = `ws://localhost:${PORT}`;
     const peers = [];
@@ -77,61 +77,61 @@ async function main() {
     });
     hostSignal.create();
 
-    await waitFor(() => code !== null, 'host krijgt geen kamercode');
-    console.log(`OK: kamercode ontvangen (${code})`);
+    await waitFor(() => code !== null, 'host never received a room code');
+    console.log(`OK: room code received (${code})`);
 
-    // --- Gast --------------------------------------------------------------
+    // --- Guest -------------------------------------------------------------
     const guestSignal = new Signal(url);
     guestSignal.on('start', (m) => {
       peers[1] = makePeer(guestSignal, m.seed, 1);
     });
     guestSignal.join(code);
 
-    await waitFor(() => peers[0] && peers[1], 'spelers zijn niet gekoppeld');
-    console.log('OK: beide spelers gekoppeld, wedstrijd gestart');
+    await waitFor(() => peers[0] && peers[1], 'players were never paired up');
+    console.log('OK: both players paired up, match started');
 
-    // --- Spelen ------------------------------------------------------------
+    // --- Play --------------------------------------------------------------
     const t0 = Date.now();
     await Promise.all(peers.map(runPeer));
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
 
     const [a, b] = peers;
-    console.log(`OK: ${TICKS} ticks gespeeld door beide spelers in ${secs}s echte tijd`);
-    console.log(`     stand host : ${a.state.score.join(' - ')}  (tick ${a.state.tick})`);
-    console.log(`     stand gast : ${b.state.score.join(' - ')}  (tick ${b.state.tick})`);
-    console.log(`     wachtbeurten: host ${a.transport.stalls}, gast ${b.transport.stalls} (hoog is normaal: deze test rent zo hard als hij kan, een browser loopt op 60 fps)`);
-    console.log(`     ping        : host ${a.transport.ping} ms, gast ${b.transport.ping} ms (0 klopt: beide spelers delen hier één klok)`);
-    console.log(`     pong-antwoorden: host ${a.transport.pongs}, gast ${b.transport.pongs}`);
-    console.log(`     input-delay : host ${a.transport.delay}, gast ${b.transport.delay} ticks`);
+    console.log(`OK: ${TICKS} ticks played by both players in ${secs}s of real time`);
+    console.log(`     host score : ${a.state.score.join(' - ')}  (tick ${a.state.tick})`);
+    console.log(`     guest score: ${b.state.score.join(' - ')}  (tick ${b.state.tick})`);
+    console.log(`     stalls     : host ${a.transport.stalls}, guest ${b.transport.stalls} (high is expected: this test runs flat out, a browser runs at 60 fps)`);
+    console.log(`     ping       : host ${a.transport.ping} ms, guest ${b.transport.ping} ms (0 is correct: both players share one clock here)`);
+    console.log(`     pongs      : host ${a.transport.pongs}, guest ${b.transport.pongs}`);
+    console.log(`     input delay: host ${a.transport.delay}, guest ${b.transport.delay} ticks`);
 
     let failed = false;
     const ha = hashState(a.state);
     const hb = hashState(b.state);
 
     if (ha !== hb) {
-      console.error(`FAIL: de twee spelers hebben een andere wedstrijdstand (${ha} != ${hb})`);
+      console.error(`FAIL: the two players ended up with a different match state (${ha} != ${hb})`);
       failed = true;
     } else {
-      console.log(`OK: identieke wedstrijdstand aan beide kanten (hash ${ha})`);
+      console.log(`OK: identical match state on both sides (hash ${ha})`);
     }
 
     if (a.transport.desync || b.transport.desync) {
-      console.error('FAIL: de ingebouwde desync-detectie sloeg aan');
+      console.error('FAIL: the built-in desync detection fired');
       failed = true;
     } else {
-      console.log('OK: geen desync gemeld door de hash-controle tijdens het spelen');
+      console.log('OK: no desync reported by the hash check while playing');
     }
 
     if (a.state.score[0] + a.state.score[1] === 0) {
-      console.log('LET OP: geen doelpunten gevallen (met willekeurige input is dat normaal)');
+      console.log('NOTE: no goals scored (that is normal with random input)');
     }
-    // Ping is hier 0 ms omdat beide spelers in hetzelfde proces draaien; wat we
-    // wel kunnen controleren is dat het verkeer echt heen én weer gaat.
+    // Ping is 0 ms here because both players run in the same process; what we can
+    // check is that traffic really does go back and forth.
     if (a.transport.pongs === 0 || b.transport.pongs === 0) {
-      console.error('FAIL: geen pong ontvangen, heen-en-weerverkeer werkt niet');
+      console.error('FAIL: no pong received, round-trip traffic is not working');
       failed = true;
     } else {
-      console.log('OK: ping/pong loopt in beide richtingen');
+      console.log('OK: ping/pong works in both directions');
     }
 
     a.transport.dispose();
@@ -160,15 +160,15 @@ async function runPeer(peer) {
     peer.transport.sample(tick);
 
     if (!peer.transport.ready(tick)) {
-      if (++spins > 4000) throw new Error(`Vastgelopen op tick ${tick}`);
-      await sleep(1); // wachten op de tegenstander
+      if (++spins > 4000) throw new Error(`Stuck on tick ${tick}`);
+      await sleep(1); // wait for the opponent
       continue;
     }
     spins = 0;
     step(peer.state, peer.transport.poll(tick));
     peer.transport.afterStep(peer.state);
 
-    // De echte loop wacht op het beeldscherm; hier geven we het netwerk lucht.
+    // The real loop waits on the display; here we just give the network some air.
     if (tick % 16 === 0) await sleep(0);
   }
 }

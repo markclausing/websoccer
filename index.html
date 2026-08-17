@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sensible Soccer</title>
+  <title>WebSoccer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,70 +12,71 @@
 
     <div id="menu" class="overlay">
       <div class="panel">
-        <h1>SENSIBLE<span>SOCCER</span></h1>
-        <p class="tag">HTML / JavaScript &middot; lokaal &amp; online</p>
+        <h1>WEB<span>SOCCER</span></h1>
+        <p class="tag">HTML / JavaScript &middot; local &amp; online</p>
 
         <div class="row">
-          <label>Modus</label>
+          <label>Mode</label>
           <div class="btns">
-            <button data-mode="1" class="active">1 speler</button>
-            <button data-mode="2">2 spelers</button>
+            <button data-mode="1" class="active">1 player</button>
+            <button data-mode="2">2 players</button>
             <button data-mode="online">Online</button>
           </div>
         </div>
 
         <div class="row">
-          <label for="duration">Speelduur</label>
+          <label for="duration">Match length</label>
           <select id="duration">
-            <option value="60">Kort (2 &times; 1 min)</option>
-            <option value="120" selected>Normaal (2 &times; 2 min)</option>
-            <option value="240">Lang (2 &times; 4 min)</option>
+            <option value="60">Short (2 &times; 1 min)</option>
+            <option value="120" selected>Normal (2 &times; 2 min)</option>
+            <option value="240">Long (2 &times; 4 min)</option>
           </select>
         </div>
 
         <div id="localSetup">
           <table class="keys">
             <thead>
-              <tr><th></th><th>Speler 1 (blauw)</th><th>Speler 2 (rood)</th></tr>
+              <tr><th></th><th>Player 1 (blue)</th><th>Player 2 (red)</th></tr>
             </thead>
             <tbody>
-              <tr><td>Lopen</td><td>W A S D</td><td>Pijltjes</td></tr>
-              <tr><td>Trap / sliding</td><td>Spatie</td><td>Enter</td></tr>
+              <tr><td>Move</td><td>W A S D</td><td>Arrow keys</td></tr>
+              <tr><td>Kick / slide</td><td>Space</td><td>Enter</td></tr>
             </tbody>
           </table>
 
           <ul class="hints">
-            <li><b>Kort tikken</b> = pass over de grond, <b>ingedrukt houden</b> = harde of hoge bal.</li>
-            <li><b>Aftertouch:</b> blijf na het schot sturen om de bal te laten krullen; naar voren = lift, naar achter = dip.</li>
-            <li>Knop <b>zonder bal</b> = sliding.</li>
-            <li>Je bestuurt automatisch de speler die het dichtst bij de bal is.</li>
-            <li>Gamepads werken ook (controller 1 &rarr; blauw, controller 2 &rarr; rood).</li>
-            <li><b>Esc</b> = pauze.</li>
+            <li><b>Tap</b> for a pass along the ground, <b>hold</b> for a harder or lofted ball.</li>
+            <li><b>Aftertouch:</b> keep steering after the shot to bend the ball; forwards lifts it, backwards makes it dip.</li>
+            <li>The button <b>without the ball</b> is a slide tackle.</li>
+            <li>You automatically control whoever is nearest the ball.</li>
+            <li>Gamepads work too (controller 1 &rarr; blue, controller 2 &rarr; red).</li>
+            <li><b>Esc</b> pauses.</li>
           </ul>
 
-          <button id="start" class="primary">AFTRAP</button>
+          <button id="start" class="primary">KICK OFF</button>
         </div>
 
         <div id="onlineSetup" class="hidden">
           <p class="explain">
-            Eén speler opent een wedstrijd en geeft de code door; de ander vult die code in.
-            De opener speelt <b>blauw</b>, de tweede speler <b>rood</b>. Je bestuurt je eigen
-            team met <b>W A S D + spatie</b> of met <b>pijltjes + enter</b>.
+            One player opens a match and passes on the code; the other enters it.
+            Whoever opens the match plays <b>blue</b>, the second player <b>red</b>.
+            You control your own team with <b>W A S D + space</b> or with
+            <b>the arrow keys + enter</b>.
           </p>
 
           <div id="roomCode" class="code hidden"></div>
           <p id="onlineStatus" class="status"></p>
 
-          <button id="host" class="primary">NIEUWE WEDSTRIJD OPENEN</button>
+          <button id="host" class="primary">OPEN A NEW MATCH</button>
 
           <div class="joinrow">
             <input id="joinCode" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false">
-            <button id="join">DEELNEMEN</button>
+            <button id="join">JOIN</button>
           </div>
 
           <p class="fineprint">
-            Werkt tussen twee tabbladen, tussen computers in hetzelfde netwerk, en over
-            internet zodra je <code>server/relay.js</code> ergens neerzet.
+            Works between two browser tabs, between computers on the same network,
+            and across the internet once you host <code>server/relay.js</code> somewhere.
           </p>
         </div>
       </div>
@@ -83,17 +84,17 @@
 
     <div id="pause" class="overlay hidden">
       <div class="panel small">
-        <h2>PAUZE</h2>
-        <button id="resume" class="primary">Verder spelen</button>
-        <button id="quit">Terug naar menu</button>
+        <h2>PAUSED</h2>
+        <button id="resume" class="primary">Resume</button>
+        <button id="quit">Back to menu</button>
       </div>
     </div>
 
     <div id="netend" class="overlay hidden">
       <div class="panel small">
-        <h2 id="netendTitle">VERBINDING WEG</h2>
+        <h2 id="netendTitle">CONNECTION LOST</h2>
         <p id="netendText" class="status"></p>
-        <button id="netendQuit" class="primary">Terug naar menu</button>
+        <button id="netendQuit" class="primary">Back to menu</button>
       </div>
     </div>
   </div>

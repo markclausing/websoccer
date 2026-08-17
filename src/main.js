@@ -30,7 +30,7 @@ const game = {
   ended: false,
 };
 
-// --- Wedstrijd starten ------------------------------------------------------
+// --- Starting a match -------------------------------------------------------
 
 function beginMatch(state, transport) {
   game.state = state;
@@ -57,8 +57,8 @@ function startLocal({ players, halfSeconds }) {
 }
 
 function startOnline({ seed, halfSeconds, localTeam, signal }) {
-  // Allebei de teams zijn "human": geen CPU, en aan beide kanten exact dezelfde
-  // simulatie. Alleen de seed en de teamindeling komen van de host.
+  // Both teams are "human": no CPU, and exactly the same simulation on both
+  // sides. Only the seed and the team assignment come from the host.
   const state = createMatch({ seed, halfSeconds, humans: [true, true] });
   const transport = new OnlineTransport({ signal, devices, localTeam });
   beginMatch(state, transport);
@@ -78,7 +78,7 @@ function toMenu() {
   document.getElementById('host').disabled = false;
 }
 
-// --- Game-loop --------------------------------------------------------------
+// --- Game loop --------------------------------------------------------------
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -94,8 +94,8 @@ function frame(now) {
     while (game.acc >= DT && guard < 8) {
       const tick = game.state.tick;
 
-      // Altijd eerst onze eigen input vastleggen en versturen - ook als we zelf
-      // moeten wachten. Anders zouden twee wachtende spelers elkaar blokkeren.
+      // Always record and send our own input first - even when we have to wait
+      // ourselves. Otherwise two waiting players would block each other.
       game.transport.sample(tick);
 
       if (!game.transport.ready(tick)) break;
@@ -106,8 +106,8 @@ function frame(now) {
       guard++;
     }
 
-    // Achterstand niet laten oplopen: na een hapering halen we een paar ticks
-    // in, maar we spelen nooit tien seconden versneld in.
+    // Do not let the backlog grow: after a hiccup we catch up a few ticks, but
+    // we never fast-forward through ten seconds of football.
     if (guard >= 8 || game.acc > DT * 8) game.acc = Math.min(game.acc, DT * 8);
   }
 
@@ -143,12 +143,12 @@ function checkNetEnd() {
   let text;
   if (t.desync) {
     title = 'DESYNC';
-    text = 'De twee spelers hebben een verschillende wedstrijdstand berekend. De wedstrijd is gestopt.';
+    text = 'The two players computed a different match state. The match has been stopped.';
   } else if (t.peerLeft) {
-    title = 'TEGENSTANDER WEG';
-    text = 'De verbinding met je tegenstander is verbroken.';
+    title = 'OPPONENT GONE';
+    text = 'The connection to your opponent has been lost.';
   } else {
-    title = 'EINDE';
+    title = 'FULL TIME';
     text = `${game.state.teams[0].name} ${game.state.score[0]} - ${game.state.score[1]} ${game.state.teams[1].name}`;
   }
 
@@ -169,7 +169,7 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
     localSetup.classList.toggle('hidden', mode === 'online');
     onlineSetup.classList.toggle('hidden', mode !== 'online');
 
-    // Van modus wisselen laat een geopende kamer los.
+    // Switching mode releases any room we had opened.
     if (game.signal && !game.state) {
       game.signal.close();
       game.signal = null;
@@ -201,20 +201,19 @@ function setOnlineStatus(text) {
 }
 
 function connect() {
-  // Een eerdere poging (bijvoorbeeld een geopende kamer waar niemand kwam) mag
-  // niet blijven hangen.
+  // An earlier attempt (say a room nobody ever joined) must not linger.
   if (game.signal) game.signal.close();
   const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
   const signal = new Signal(proto + location.host);
   game.signal = signal;
-  signal.on('error', (m) => setOnlineStatus(m.msg || 'Verbindingsfout'));
+  signal.on('error', (m) => setOnlineStatus(m.msg || 'Connection error'));
   signal.on('close', () => {
-    if (!game.state) setOnlineStatus('Verbinding met de server verbroken.');
+    if (!game.state) setOnlineStatus('Lost the connection to the server.');
   });
   return signal;
 }
 
-// Wedstrijd openen: wij zijn de host, wij bepalen de seed.
+// Opening a match: we are the host, so we pick the seed.
 document.getElementById('host').addEventListener('click', () => {
   const secs = halfSeconds();
   const signal = connect();
@@ -222,7 +221,7 @@ document.getElementById('host').addEventListener('click', () => {
   signal.on('room', (m) => {
     roomCode.textContent = m.code;
     roomCode.classList.remove('hidden');
-    setOnlineStatus('Geef deze code door en wacht op je tegenstander...');
+    setOnlineStatus('Share this code and wait for your opponent...');
   });
 
   signal.on('peer', () => {
@@ -235,21 +234,21 @@ document.getElementById('host').addEventListener('click', () => {
   signal.create();
 });
 
-// Deelnemen: wij krijgen de seed van de host en spelen rood.
+// Joining: we get the seed from the host and play red.
 document.getElementById('join').addEventListener('click', () => {
   const code = document.getElementById('joinCode').value.toUpperCase().trim();
   if (code.length < 4) {
-    setOnlineStatus('Vul de 4-letterige code in.');
+    setOnlineStatus('Enter the four-character code.');
     return;
   }
   const signal = connect();
 
-  signal.on('room', () => setOnlineStatus('Verbonden. Wachten op de aftrap...'));
+  signal.on('room', () => setOnlineStatus('Connected. Waiting for kickoff...'));
   signal.on('start', (m) => {
     startOnline({ seed: m.seed, halfSeconds: m.halfSeconds, localTeam: 1, signal });
   });
 
-  setOnlineStatus('Verbinden...');
+  setOnlineStatus('Connecting...');
   signal.join(code);
 });
 
@@ -260,15 +259,15 @@ document.getElementById('joinCode').addEventListener('keydown', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Escape' || !game.state) return;
-  // Online pauzeren kan niet: dan staat de tegenstander te wachten.
+  // Pausing online is not possible: it would leave the opponent hanging.
   if (game.transport.online) return;
   game.paused = !game.paused;
   pauseBox.classList.toggle('hidden', !game.paused);
   game.acc = 0;
 });
 
-// Handig bij het uitzoeken van netwerkgedrag: in de console kun je
-// __game.transport.ping / .delay / .stalls / .desync bekijken.
+// Handy when digging into network behaviour: from the console you can inspect
+// __game.transport.ping / .delay / .stalls / .desync.
 if (typeof window !== 'undefined') window.__game = game;
 
 requestAnimationFrame(frame);

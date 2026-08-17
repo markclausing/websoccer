@@ -1,16 +1,16 @@
 # WebSoccer
 
-Arcade-voetbal in de browser, in de geest van de 16-bit klassiekers: verticaal
-scrollend veld, kleine spelertjes, één knop, en aftertouch om de bal te laten
-krullen.
+Arcade football in the browser, in the spirit of the 16-bit classics: a
+vertically scrolling pitch, tiny players, one button, and aftertouch to bend the
+ball.
 
-Drie manieren om te spelen: **1 speler tegen de CPU**, **2 spelers op één
-toetsenbord**, en **online tegen elkaar** via een kamercode.
+Three ways to play: **1 player against the CPU**, **2 players on one keyboard**,
+and **online against each other** using a room code.
 
-Geen dependencies, geen buildstap. HTML, CSS en JavaScript zoals de browser ze
-krijgt aangeleverd.
+No dependencies, no build step. HTML, CSS and JavaScript exactly as the browser
+receives them.
 
-## Starten
+## Getting started
 
 ```bash
 git clone https://github.com/markclausing/websoccer.git
@@ -18,182 +18,182 @@ cd websoccer
 npm start
 ```
 
-Open daarna http://localhost:5173/ — dat is alles. Er is geen `npm install`
-nodig; er zijn geen packages om te installeren.
+Then open http://localhost:5173/ — that is all. There is no `npm install`; there
+are no packages to install.
 
-Die ene server doet twee dingen: de pagina serveren en online wedstrijden
-koppelen. Uitgebreidere uitleg (andere poort, spelen over het netwerk of over
-internet, problemen oplossen) staat in [INSTALL.md](INSTALL.md).
+That single server does two things: serve the page and pair up online matches.
+For more detail (a different port, playing over your network or over the
+internet, troubleshooting) see [INSTALL.md](INSTALL.md).
 
-Wil je meebouwen? Lees [CONTRIBUTING.md](CONTRIBUTING.md) — daar staat vooral
-waarom de simulatie deterministisch moet blijven.
+Want to help build it? Read [CONTRIBUTING.md](CONTRIBUTING.md) — mostly about why
+the simulation has to stay deterministic.
 
-## Besturing
+## Controls
 
-|                | Speler 1 (blauw) | Speler 2 (rood) |
-| -------------- | ---------------- | --------------- |
-| Lopen          | `W A S D`        | Pijltjes        |
-| Trap / sliding | `Spatie`         | `Enter`         |
-| Pauze          | `Esc`            | (niet online)   |
+|              | Player 1 (blue) | Player 2 (red) |
+| ------------ | --------------- | -------------- |
+| Move         | `W A S D`       | Arrow keys     |
+| Kick / slide | `Space`         | `Enter`        |
+| Pause        | `Esc`           | (not online)   |
 
-Online bestuur je één team en werken beide toetsenbordhelften voor jouw speler.
-Gamepads werken ook.
+Online you control one team and both keyboard halves drive your player. Gamepads
+work as well.
 
-Spelgevoel:
+How it feels:
 
-- **Kort tikken** = pass over de grond, **ingedrukt houden** = harder en hoger.
-  Het balkje onder je speler toont de kracht; op maximum schiet hij vanzelf.
-- **Aftertouch**: blijf ná de trap sturen. Zijwaarts laat de bal krullen,
-  in de balrichting geeft lift, tegen de balrichting in laat hem duiken.
-- Knop **zonder bal** = sliding.
-- Je bestuurt automatisch de speler die het dichtst bij de bal is.
+- **Tap** for a pass along the ground, **hold** for something harder and higher.
+  The bar under your player shows the power; at maximum it fires by itself.
+- **Aftertouch**: keep steering *after* the kick. Sideways bends the ball, along
+  the ball's direction lifts it, against it makes it dip.
+- The button **without the ball** is a slide tackle.
+- You automatically control whoever is nearest the ball.
 
-Er zijn doelpunten, inworpen, hoekschoppen, doeltrappen, rust en een eindsignaal.
-Geen buitenspel en geen overtredingen — bewust, net als het origineel.
+There are goals, throw-ins, corners, goal kicks, half time and a final whistle.
+No offside and no fouls — deliberately, just like the originals.
 
-## Online spelen
+## Playing online
 
-1. Beide spelers openen de pagina van dezelfde server.
-2. De één kiest **Online → NIEUWE WEDSTRIJD OPENEN** en krijgt een code van vier
-   tekens. Die speler speelt blauw.
-3. De ander vult de code in en klikt op **DEELNEMEN**. Die speelt rood.
-4. Zodra de tweede speler binnen is, begint de wedstrijd bij beiden.
+1. Both players open the page from the same server.
+2. One picks **Online → OPEN A NEW MATCH** and gets a four-character code. That
+   player plays blue.
+3. The other enters the code and clicks **JOIN**. They play red.
+4. As soon as the second player is in, the match starts for both.
 
-Waar dat werkt:
+Where this works:
 
-- **Twee tabbladen** op dezelfde computer (handig om te testen).
-- **Twee computers in hetzelfde netwerk**: de tweede opent
-  `http://<ip-van-de-host>:5173/`. De pagina verbindt automatisch terug naar de
-  server waar hij vandaan komt. Let op de firewall van je Mac.
-- **Over internet**: zet `server/relay.js` op een server (of tunnel poort 5173
-  naar buiten). Achter HTTPS gebruikt de client vanzelf `wss://`.
+- **Two browser tabs** on one computer (handy for testing).
+- **Two computers on the same network**: the second one opens
+  `http://<ip-of-the-host>:5173/`. The page automatically connects back to the
+  server it came from. Mind your firewall.
+- **Over the internet**: put `server/relay.js` on a server (or tunnel port 5173
+  outwards). Behind HTTPS the client switches to `wss://` on its own.
 
-Linksonder in beeld staat de ping. Wacht je op de tegenstander, dan verschijnt
-er "WACHTEN OP TEGENSTANDER" in plaats van dat het spel gaat gokken.
+The ping is shown in the bottom left. When you are waiting on your opponent you
+get "WAITING FOR OPPONENT" instead of the game guessing.
 
-## Architectuur
+## Architecture
 
-Alles hangt aan één regel:
+Everything hangs off one line:
 
 ```js
-step(state, [maskTeam0, maskTeam1]); // dezelfde state + inputs -> altijd hetzelfde resultaat
+step(state, [maskTeam0, maskTeam1]); // same state + inputs -> always the same result
 ```
 
-De simulatie is puur en deterministisch: vaste tijdstap van 60 Hz, geen DOM, geen
-`Math.random()` (alle toeval loopt via `state.rng`), en input is niets meer dan
-een bitmask van 5 bits per speler.
+The simulation is pure and deterministic: a fixed 60 Hz timestep, no DOM, no
+`Math.random()` (all randomness goes through `state.rng`), and input is nothing
+more than a 5-bit mask per player.
 
-Daardoor hoefde er voor online multiplayer **niets** aan de simulatie te
-veranderen. De twee machines sturen elkaar alleen hun knoppen — nooit posities,
-snelheden of standen — en rekenen ieder dezelfde wedstrijd uit.
+That is why online multiplayer needed **no** changes to the simulation. The two
+machines only send each other their buttons — never positions, velocities or
+scores — and each computes the same match.
 
 ```
-index.html            menu (lokaal + online) en canvas
+index.html            menu (local + online) and canvas
 styles.css
 src/
-  constants.js        alle afmetingen, snelheden en spelregelconstanten
-  util.js             wiskunde + deterministische PRNG (mulberry32)
-  input.js            toetsenbord/gamepad -> bitmask
-  main.js             menu, vaste-tijdstap game-loop
+  constants.js        every dimension, speed and rule constant
+  util.js             maths + deterministic PRNG (mulberry32)
+  input.js            keyboard/gamepad -> bitmask
+  main.js             menu, fixed-timestep game loop
   game/
-    state.js          wedstrijdtoestand, formaties, aftrap, clone + hash
-    sim.js            step(): de enige plek waar de wedstrijd verandert
-    ai.js             CPU-logica (draait binnen de simulatie)
-    kick.js           gedeelde trapfunctie voor mens én CPU
+    state.js          match state, formations, kickoff, clone + hash
+    sim.js            step(): the only place where the match changes
+    ai.js             CPU logic (runs inside the simulation)
+    kick.js           shared kick function for human and CPU alike
   render/
-    pitch.js          veld wordt één keer naar een offscreen canvas getekend
-    renderer.js       camera, spelers, bal, HUD, radar, netwerkstatus
+    pitch.js          pitch, drawn once onto an offscreen canvas
+    renderer.js       camera, players, ball, HUD, radar, network status
   net/
-    signal.js         WebSocket-client: kamers en berichtroutering
-    transport.js      LocalTransport (lokaal) en OnlineTransport (lockstep)
+    signal.js         WebSocket client: rooms and message routing
+    transport.js      LocalTransport (local) and OnlineTransport (lockstep)
 server/
-  relay.js            statische bestanden + kamers + inputs doorgeven
-  ws.js               WebSocket-protocol met de hand (geen dependencies)
+  relay.js            static files + rooms + passing inputs along
+  ws.js               WebSocket protocol by hand (no dependencies)
 tools/
-  simtest.js          headless wedstrijd + determinisme-check
-  netcheck.js         twee echte spelers via de echte server tegen elkaar
-  uicheck.js          main.js tegen een namaak-DOM, inclusief online-flow
+  simtest.js          headless match + determinism check
+  netcheck.js         two real players against each other through the real server
+  uicheck.js          main.js against a fake DOM, including the online flow
 ```
 
-### Waar de lagen elkaar raken
+### Where the layers meet
 
-- **Rendering leest alleen.** De renderer past nooit `state` aan. Camera-smoothing
-  en schermschudden staan expres buiten de simulatie: cosmetica mag per machine
-  verschillen, de wedstrijd niet.
-- **Input is een integer.** De game-loop kent alleen
-  `sample(tick)` / `ready(tick)` / `poll(tick)` / `afterStep(state)`. Lokaal en
-  online implementeren dezelfde vier methodes; de loop weet niet wat eronder zit.
-- **De AI zit ín de simulatie.** Anders zouden twee machines verschillende
-  CPU-beslissingen nemen en meteen uit elkaar lopen.
-- **Eén tick = drie fases.** Eerst bepalen alle 22 spelers hun intentie op dezelfde
-  snapshot, daarna worden trappen uitgevoerd, daarna wordt er bewogen. Zonder die
-  splitsing reageert team 1 op verse posities en team 0 op verouderde; dat gaf
-  team 1 meetbaar meer doelpunten (114 om 66 over 60 CPU-wedstrijden, nu 74 om 62).
+- **Rendering only reads.** The renderer never writes to `state`. Camera
+  smoothing and screen shake sit outside the simulation on purpose: cosmetics may
+  differ per machine, the match may not.
+- **Input is an integer.** The game loop only knows `sample(tick)`,
+  `ready(tick)`, `poll(tick)` and `afterStep(state)`. Local and online implement
+  the same four methods; the loop has no idea which one it is talking to.
+- **The AI lives inside the simulation.** Otherwise two machines would make
+  different CPU decisions and drift apart immediately.
+- **One tick is three phases.** First all 22 players decide their intent from the
+  same snapshot, then kicks are carried out, then everyone moves. Without that
+  split, team 1 reacts to fresh positions and team 0 to stale ones — which
+  measurably won team 1 more goals (114 to 66 across 60 CPU matches, now 74 to
+  62).
 
-### Hoe de netcode werkt
+### How the netcode works
 
-**Lockstep met input-delay.** De input van tick T wordt een aantal ticks van
-tevoren verstuurd, zodat hij op tijd aan de overkant is. Is hij er toch niet, dan
-wacht de simulatie ("stall") in plaats van te gokken — daardoor kan hij niet uit
-de pas lopen.
+**Lockstep with input delay.** The input for tick T is sent a number of ticks
+ahead of time so it arrives before it is needed. If it is not there anyway, the
+simulation waits (a "stall") instead of guessing — which is why the two sides
+cannot drift apart.
 
-- **Gelijke start.** De host verzint de seed en stuurt die mee; beide kanten doen
+- **Identical start.** The host picks the seed and sends it along; both sides run
   `createMatch({ seed, humans: [true, true] })`.
-- **Pakketverlies repareert zichzelf.** Elk bericht bevat de laatste acht ticks
-  aan inputs, dus er hoeft nooit iets opnieuw gevraagd te worden.
-- **De delay past zich aan.** Bij veel wachtbeurten gaat hij omhoog (tot 12 ticks),
-  bij een rustige verbinding weer omlaag (tot 3). Dat mag per speler verschillen:
-  elke input draagt zijn eigen ticknummer, dus de uitkomst blijft gelijk. De
-  netwerktest laat dat ook zien — de twee kanten eindigen met een verschillende
-  delay en toch dezelfde wedstrijdstand.
-- **Desync-detectie.** Elke seconde gaat er een `hashState()` over en weer. Wijken
-  ze af, dan stopt de wedstrijd met een duidelijke melding in plaats van dat de
-  twee spelers stilletjes een andere wedstrijd zitten te spelen.
-- **De server is dom.** Hij koppelt twee spelers aan een code en geeft berichten
-  door. Hij kent de spelregels niet en houdt geen stand bij.
+- **Packet loss repairs itself.** Every message carries the last eight ticks of
+  input, so nothing ever has to be re-requested.
+- **The delay adapts.** Frequent stalls push it up (to 12 ticks); a calm
+  connection brings it back down (to 3). This may differ per player: every input
+  carries its own tick number, so the outcome stays the same. The network test
+  shows exactly that — the two sides finish on a different delay and still agree
+  on the match.
+- **Desync detection.** Once a second a `hashState()` goes back and forth. If
+  they differ the match stops with a clear message, rather than letting the two
+  players quietly play different matches.
+- **The server is dumb.** It pairs two players by code and passes messages along.
+  It does not know the rules and keeps no score.
 
-Let bij het uitbreiden op deze regels, anders sneuvelt het determinisme:
+Keep to these rules when extending things, or determinism goes out of the window:
 
-- geen `Math.random()` in `src/game/**` (gebruik `randRange(state, ...)`);
-- geen `Date.now()` of `performance.now()` in de simulatie;
-- geen iteratie over `Set`/`Object.keys()` waarvan de volgorde kan verschillen;
-- rendering mag nooit in `state` schrijven.
+- no `Math.random()` in `src/game/**` (use `randRange(state, ...)`);
+- no `Date.now()` or `performance.now()` in the simulation;
+- no iteration over `Set`/`Object.keys()` whose order can vary;
+- rendering must never write to `state`.
 
 ## Tests
 
 ```bash
-npm test           # alle drie
-npm run test:sim   # speelt hele wedstrijden headless, controleert determinisme
-npm run test:net   # start de relay, koppelt twee echte clients, speelt 100s
-                   # en controleert of beide kanten dezelfde stand berekenen
-npm run test:ui    # draait main.js tegen een namaak-DOM: menu, lokale wedstrijd,
-                   # online wedstrijd openen, tegenstander laten binnenkomen,
-                   # spelen, en het afvangen van een weggevallen tegenstander
+npm test           # all three
+npm run test:sim   # plays whole matches headless, checks determinism
+npm run test:net   # starts the relay, connects two real clients, plays 100s and
+                   # checks both sides compute the same match
+npm run test:ui    # runs main.js against a fake DOM: menu, local match, opening
+                   # an online match, an opponent joining, playing, and handling
+                   # an opponent who disappears
 ```
 
-Bij het uitzoeken van netwerkgedrag: `__game.transport` in de browserconsole
-geeft `ping`, `delay`, `stalls` en `desync`.
+When digging into network behaviour: `__game.transport` in the browser console
+gives you `ping`, `delay`, `stalls` and `desync`.
 
-## Wat er nog niet is
+## What is not there yet
 
-- Geen overtredingen, vrije trappen, strafschoppen of buitenspel.
-- Eén formatie (4-3-3) en twee teams; nog geen teamkeuze of competitie.
-- Keeper is simpel: hij loopt naar de bal en trapt uit, hij duikt niet.
-- Geen geluid.
-- Online: geen revanche-knop (terug naar het menu en opnieuw), geen herverbinden
-  na een wegval, en berichten gaan als JSON over de lijn. Rond de 4 kB/s per
-  speler — prima, maar binair zou een stuk zuiniger zijn.
-- Alles loopt via de relay-server. Voor lagere latency zou WebRTC (peer-to-peer)
-  beter zijn; de relay blijft dan nodig om de twee spelers te koppelen.
+- No fouls, free kicks, penalties or offside.
+- One formation (4-3-3) and two teams; no team selection or league yet.
+- The keeper is simple: he walks to the ball and hoofs it clear, he does not dive.
+- No sound.
+- Online: no rematch button (back to the menu and start again), no reconnecting
+  after a drop, and messages go over the wire as JSON. Around 4 kB/s per player —
+  fine, but binary would be considerably leaner.
+- Everything runs through the relay server. WebRTC (peer to peer) would lower
+  latency; the relay would still be needed to introduce the two players.
 
-Zin om er iets van op te pakken? [CONTRIBUTING.md](CONTRIBUTING.md) beschrijft
-per onderwerp waar je moet beginnen.
+Fancy picking one of these up? [CONTRIBUTING.md](CONTRIBUTING.md) describes where
+to start per topic.
 
-## Licentie
+## Licence
 
 [MIT](LICENSE).
 
-Dit is een zelfgeschreven eerbetoon aan de topdown-voetbalspellen van de jaren
-negentig. Het project staat op zichzelf: geen code, beeldmateriaal of andere
-onderdelen van een bestaand spel, en geen enkele band met de makers of
-rechthebbenden daarvan.
+This is an original tribute to the top-down football games of the nineties. The
+project stands on its own: no code, artwork or other parts of any existing game,
+and no affiliation with their makers or rights holders.

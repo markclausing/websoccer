@@ -1,24 +1,24 @@
 import { hashState } from '../game/state.js';
 
 /**
- * Transport = de laag die per tick de inputs van ALLE spelers levert.
- * De game-loop kent alleen deze interface:
+ * A transport supplies the inputs of ALL players, per tick.
+ * The game loop only knows this interface:
  *
- *    transport.sample(tick)   input van deze machine vastleggen (en versturen)
- *    transport.ready(tick)    mogen we deze tick simuleren?
+ *    transport.sample(tick)   record (and send) this machine's input
+ *    transport.ready(tick)    are we allowed to simulate this tick?
  *    transport.poll(tick)  -> [maskTeam0, maskTeam1]
  *    transport.afterStep(state)
  *
- * Lokaal komt alles van het toetsenbord; online komt de helft van de
- * tegenstander. De simulatie merkt het verschil niet - daarom hoefde er voor
- * online multiplayer niets aan sim.js te veranderen.
+ * Locally everything comes from the keyboard; online half of it comes from the
+ * opponent. The simulation cannot tell the difference - which is why adding
+ * online multiplayer needed no changes to sim.js at all.
  */
 
-/** Beide spelers op één machine. */
+/** Both players on one machine. */
 export class LocalTransport {
   constructor(devices, humanSlots = [0]) {
     this.devices = devices;
-    this.humanSlots = humanSlots; // humanSlots[controller] = team-index
+    this.humanSlots = humanSlots; // humanSlots[controller] = team index
     this.online = false;
   }
 
@@ -41,8 +41,8 @@ export class LocalTransport {
 }
 
 /**
- * Ringbuffer met inputs per tick. Slaat het ticknummer op naast de waarde, zodat
- * een oude waarde na een omwenteling nooit voor een nieuwe kan doorgaan.
+ * Ring buffer of inputs per tick. Stores the tick number alongside the value, so
+ * a stale entry can never pass for a fresh one after the buffer wraps around.
  */
 export class InputBuffer {
   constructor(size = 1024) {
@@ -54,7 +54,7 @@ export class InputBuffer {
   set(tick, mask) {
     if (tick < 0) return;
     const i = tick % this.size;
-    if (this.ticks[i] === tick) return; // eerst binnengekomen waarde wint
+    if (this.ticks[i] === tick) return; // first value to arrive wins
     this.masks[i] = mask;
     this.ticks[i] = tick;
   }
@@ -64,7 +64,7 @@ export class InputBuffer {
     return this.ticks[i] === tick ? this.masks[i] : null;
   }
 
-  /** Laatst bekende input herhalen. Nog niet in gebruik; basis voor rollback. */
+  /** Repeat the last known input. Unused for now; the basis for rollback. */
   predict(tick) {
     for (let t = tick; t > tick - 40 && t >= 0; t--) {
       const v = this.get(t);
@@ -75,13 +75,13 @@ export class InputBuffer {
 }
 
 /**
- * Online multiplayer: lockstep met input-delay.
+ * Online multiplayer: lockstep with input delay.
  *
- * Beide machines draaien dezelfde deterministische simulatie en sturen elkaar
- * alleen hun eigen knoppen - nooit posities of standen. De input van tick T
- * wordt DELAY ticks van tevoren verstuurd, zodat hij op tijd aan de overkant is.
- * Is hij er toch niet, dan wacht de simulatie (een "stall") in plaats van te
- * gokken; dat kan niet uit de pas lopen.
+ * Both machines run the same deterministic simulation and send each other only
+ * their own buttons - never positions or scores. The input for tick T is sent
+ * DELAY ticks ahead of time so it arrives before it is needed. If it is not
+ * there anyway, the simulation waits (a "stall") instead of guessing; that way
+ * the two sides cannot drift apart.
  */
 export class OnlineTransport {
   constructor({ signal, devices, localTeam, delay = 4, minDelay = 3, maxDelay = 12 }) {
@@ -111,8 +111,8 @@ export class OnlineTransport {
     this.myHashes = new Map();
     this.theirHashes = new Map();
 
-    // De eerste DELAY ticks heeft niemand nog input kunnen sturen. Beide kanten
-    // vullen daar dezelfde nullen in, anders wacht iedereen op elkaar.
+    // For the first DELAY ticks nobody has been able to send anything yet. Both
+    // sides fill in the same zeroes, otherwise everyone waits for everyone.
     for (let t = 0; t < delay; t++) {
       this.local.set(t, 0);
       this.remote.set(t, 0);
@@ -135,23 +135,23 @@ export class OnlineTransport {
     });
   }
 
-  /** Leg de input van deze machine vast voor tick+DELAY en stuur hem op. */
+  /** Record this machine's input for tick+DELAY and send it off. */
   sample(tick) {
     const target = tick + this.delay;
     if (target <= this.lastSent) return;
 
-    // Online bestuur je maar één team, dus beide toetsenbordhelften (en beide
-    // gamepads) sturen dezelfde speler aan.
+    // Online you control just one team, so both keyboard halves (and both
+    // gamepads) drive the same player.
     const mask = this.devices.mask(0) | this.devices.mask(1);
 
-    // Alle ticks tot en met `target` vullen. Meestal is dat er precies één, maar
-    // als de delay net omhoog is gegaan mag er geen gat vallen: op een ontbrekende
-    // tick zou de tegenstander eeuwig staan wachten.
+    // Fill every tick up to and including `target`. Usually that is exactly one,
+    // but if the delay has just gone up there must be no gap: a missing tick
+    // would leave the opponent waiting forever.
     for (let t = Math.max(this.lastSent + 1, 0); t <= target; t++) this.local.set(t, mask);
     this.lastSent = target;
 
-    // De laatste paar ticks gaan telkens mee: verloren pakketjes repareren
-    // zichzelf zonder dat er iets opnieuw gevraagd hoeft te worden.
+    // The last few ticks ride along every time: lost packets repair themselves
+    // without anything ever having to be re-requested.
     const frames = [];
     for (let t = Math.max(0, target - 7); t <= target; t++) {
       const v = this.local.get(t);
@@ -173,10 +173,10 @@ export class OnlineTransport {
   }
 
   /**
-   * De input-delay past zich aan de verbinding aan: haperen we vaak, dan sturen
-   * we onze input verder vooruit (iets tragere besturing, maar vloeiend beeld).
-   * Dit mag per speler verschillen - elke input draagt zijn eigen ticknummer,
-   * dus de simulatie blijft aan beide kanten gelijk.
+   * The input delay adapts to the connection: if we stall often we send our input
+   * further ahead (slightly laggier controls, but a smooth picture). This may
+   * differ per player - every input carries its own tick number, so the
+   * simulation stays identical on both sides.
    */
   tuneDelay() {
     if (this.stallWindow > 8 && this.delay < this.maxDelay) {
@@ -201,7 +201,7 @@ export class OnlineTransport {
     return out;
   }
 
-  /** Elke seconde de toestand vergelijken; bij verschil is er een desync. */
+  /** Compare state once a second; any difference means a desync. */
   afterStep(state) {
     if (state.tick % 60 !== 0) return;
     this.tuneDelay();

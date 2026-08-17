@@ -3,14 +3,14 @@ import {
 } from '../constants.js';
 import { clamp } from '../util.js';
 
-// De volledige wedstrijdtoestand zit in één plain object: geen DOM, geen closures,
-// geen Math.random. Daardoor is het serialiseerbaar (netwerk) en kopieerbaar (rollback).
+// The entire match state lives in one plain object: no DOM, no closures, no
+// Math.random. That makes it serialisable (network) and copyable (rollback).
 
 export function createMatch(options = {}) {
   const opts = {
     seed: 12345,
-    halfSeconds: 120, // echte seconden per helft (wordt getoond als 45 speelminuten)
-    humans: [true, false], // [team0 is mens?, team1 is mens?]
+    halfSeconds: 120, // real seconds per half (displayed as 45 match minutes)
+    humans: [true, false], // [is team 0 human?, is team 1 human?]
     ...options,
   };
 
@@ -50,7 +50,7 @@ function newBall() {
     spin: 0,
     owner: null, // {team, idx}
     lastTouch: null, // {team, idx}
-    kicker: null, // {team, idx, ticks} -> wie mag aftertouch geven
+    kicker: null, // {team, idx, ticks} -> who is allowed to apply aftertouch
   };
 }
 
@@ -60,7 +60,7 @@ function makeTeam(index, human, attackDir) {
     index,
     name: preset.name,
     human: !!human,
-    attackDir, // -1 = valt aan richting boven (y omlaag), +1 = richting onder
+    attackDir, // -1 = attacks towards the top (y decreasing), +1 = towards the bottom
     controlled: 9,
     prevMask: 0,
     players: FORMATION.map((f, i) => ({
@@ -77,12 +77,12 @@ function makeTeam(index, human, attackDir) {
       slide: 0,
       down: 0,
       cooldown: 0,
-      holdTicks: 0, // hoe lang deze speler de bal al heeft (voor keeper-uittrap)
+      holdTicks: 0, // how long this player has held the ball (for the keeper's clearance)
     })),
   };
 }
 
-/** Positie op het veld voor een team, in relatieve coördinaten. */
+/** A position on the pitch for one team, in relative coordinates. */
 export function posFor(team, xRel, yFrac) {
   const x = FIELD.cx + clamp(xRel, -1, 1) * (FIELD_W / 2 - 18);
   const y = team.attackDir < 0
@@ -91,7 +91,7 @@ export function posFor(team, xRel, yFrac) {
   return { x, y };
 }
 
-/** Hoe ver is een punt richting het doel van de tegenstander (0 = eigen doel, 1 = hun doel). */
+/** How far a point is towards the opponent's goal (0 = own goal, 1 = their goal). */
 export function advanceOf(team, y) {
   const a = team.attackDir < 0
     ? (FIELD.bottom - y) / FIELD_H
@@ -127,7 +127,7 @@ export function setupKickoff(state, kickoffTeam) {
   for (const team of state.teams) {
     for (let i = 0; i < team.players.length; i++) {
       const f = FORMATION[i];
-      // Bij de aftrap staat iedereen op eigen helft: y wordt gecomprimeerd naar [0, 0.47].
+      // At kickoff everyone stands in their own half: y is squeezed into [0, 0.47].
       const yFrac = i === 0 ? f.y : Math.min(f.y * 0.62, 0.46);
       const p = posFor(team, f.x, yFrac);
       const pl = team.players[i];
@@ -148,7 +148,7 @@ export function setupKickoff(state, kickoffTeam) {
     team.prevMask = 0;
   }
 
-  // De spits van het aftrappende team staat bij de bal.
+  // The striker of the kickoff team stands next to the ball.
   const taker = state.teams[kickoffTeam].players[9];
   taker.x = FIELD.cx - 12;
   taker.y = FIELD.cy + state.teams[kickoffTeam].attackDir * 14;
@@ -157,12 +157,12 @@ export function setupKickoff(state, kickoffTeam) {
   state.teams[kickoffTeam].controlled = 9;
 }
 
-/** Diepe kopie — basis voor rollback-netcode en voor replay/debug. */
+/** Deep copy - the basis for rollback netcode and for replay/debugging. */
 export function cloneState(state) {
   return structuredClone(state);
 }
 
-/** Goedkope checksum om desync tussen twee machines te detecteren. */
+/** Cheap checksum to detect desync between two machines. */
 export function hashState(state) {
   let h = 2166136261;
   const mix = (v) => {

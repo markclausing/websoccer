@@ -1,12 +1,12 @@
 import { BTN } from './constants.js';
 
-// Input wordt gecomprimeerd tot één integer (bitmask) per speler per tick.
-// Dat is precies wat je later over het net stuurt: 1 byte per speler per frame.
+// Input is compressed into a single integer (bitmask) per player per tick.
+// That is exactly what goes over the wire: one byte per player per frame.
 
 export const DEFAULT_KEYMAP = [
-  // Slot 0 - links op het toetsenbord
+  // Slot 0 - left-hand side of the keyboard
   { KeyW: BTN.UP, KeyS: BTN.DOWN, KeyA: BTN.LEFT, KeyD: BTN.RIGHT, Space: BTN.FIRE, ShiftLeft: BTN.FIRE },
-  // Slot 1 - rechts op het toetsenbord
+  // Slot 1 - right-hand side of the keyboard
   {
     ArrowUp: BTN.UP,
     ArrowDown: BTN.DOWN,
@@ -52,7 +52,7 @@ export class InputDevices {
     return this.down.has(code);
   }
 
-  /** Bitmask voor één lokaal slot (0 of 1), toetsenbord + gamepad samengevoegd. */
+  /** Bitmask for one local slot (0 or 1), keyboard and gamepad merged. */
   mask(slot) {
     if (!this.enabled) return 0;
     let m = 0;
@@ -89,7 +89,7 @@ export class InputDevices {
   }
 }
 
-/** Bitmask -> richting. Diagonalen worden genormaliseerd. */
+/** Bitmask -> direction. Diagonals are normalised. */
 export function maskToDir(mask) {
   let x = 0;
   let y = 0;

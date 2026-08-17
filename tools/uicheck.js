@@ -1,10 +1,10 @@
-// Rooktest voor de browserkant zonder browser.
+// Smoke test for the browser side, without a browser.
 //
-// Draait src/main.js tegen een namaak-DOM en speelt daarmee een échte online
-// wedstrijd tegen een tweede speler in hetzelfde proces, via de echte relay.
-// Vangt precies de fouten die de andere tests niet zien: menuknoppen die niet
-// gekoppeld zijn, een renderer die op iets ontbrekends valt, of een online-flow
-// die nooit een wedstrijd start.
+// Runs src/main.js against a fake DOM and uses it to play a real online match
+// against a second player in the same process, through the real relay. Catches
+// exactly the failures the other tests cannot see: menu buttons that were never
+// wired up, a renderer that trips over something missing, or an online flow that
+// never starts a match.
 
 import { spawn } from 'node:child_process';
 import { createMatch } from '../src/game/state.js';
@@ -15,7 +15,7 @@ import { OnlineTransport } from '../src/net/transport.js';
 const PORT = 5196;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// --- Namaak-DOM -------------------------------------------------------------
+// --- Fake DOM ---------------------------------------------------------------
 
 const listeners = new Map();
 const addListener = (ev, fn) => {
@@ -23,7 +23,7 @@ const addListener = (ev, fn) => {
   listeners.get(ev).push(fn);
 };
 
-// Elk canvas-commando is een lege functie; we tellen ze alleen.
+// Every canvas command is an empty function; we only count them.
 let canvasCalls = 0;
 const ctx = new Proxy({}, {
   get(_, prop) {
@@ -95,13 +95,13 @@ function click(element) {
   for (const fn of listeners.get(`${element.id}:click`) || []) fn();
 }
 
-/** Eén beeldframe van de namaakbrowser. */
+/** One display frame of the fake browser. */
 let clock = 0;
 function pumpFrame() {
   clock += 16.7;
   const cb = rafCb;
   rafCb = null;
-  if (!cb) throw new Error('main.js heeft geen requestAnimationFrame gevraagd');
+  if (!cb) throw new Error('main.js never asked for a requestAnimationFrame');
   cb(clock);
 }
 
@@ -113,7 +113,7 @@ async function waitFor(check, what, timeoutMs = 8000) {
     if (await check()) return;
     await sleep(10);
   }
-  throw new Error(`Time-out bij: ${what}`);
+  throw new Error(`Timed out: ${what}`);
 }
 
 async function main() {
@@ -131,76 +131,76 @@ async function main() {
       } catch {
         return false;
       }
-    }, 'server start niet');
+    }, 'server did not start');
 
     await import('../src/main.js');
     const game = global.window.__game;
-    if (!game) throw new Error('main.js heeft geen __game-haakje gezet');
+    if (!game) throw new Error('main.js did not expose the __game hook');
 
-    // 1. Lokale wedstrijd: menu -> aftrap -> een paar honderd frames renderen.
+    // 1. Local match: menu -> kickoff -> render a couple of hundred frames.
     click(el('start'));
-    if (!game.state) throw new Error('lokale wedstrijd start niet via de AFTRAP-knop');
+    if (!game.state) throw new Error('the KICK OFF button does not start a local match');
     for (let i = 0; i < 200; i++) pumpFrame();
-    if (game.state.tick < 100) throw new Error(`lokale simulatie loopt niet (tick ${game.state.tick})`);
-    console.log(`OK: lokale wedstrijd draait (tick ${game.state.tick}, ${canvasCalls} canvas-commando's)`);
+    if (game.state.tick < 100) throw new Error(`the local simulation is not running (tick ${game.state.tick})`);
+    console.log(`OK: local match is running (tick ${game.state.tick}, ${canvasCalls} canvas commands)`);
 
     click(el('quit'));
-    if (game.state) throw new Error('terug naar menu werkt niet');
+    if (game.state) throw new Error('returning to the menu does not work');
 
-    // 2. Online: modus kiezen en een wedstrijd openen.
+    // 2. Online: pick the mode and open a match.
     click(modeButtons[2]);
     click(el('host'));
 
-    await waitFor(() => el('roomCode').textContent.length === 4, 'geen kamercode in beeld');
+    await waitFor(() => el('roomCode').textContent.length === 4, 'no room code on screen');
     const code = el('roomCode').textContent;
-    console.log(`OK: online wedstrijd geopend, code ${code} staat in beeld`);
+    console.log(`OK: online match opened, code ${code} is on screen`);
 
-    // 3. Tegenstander laten binnenkomen (dezelfde clientcode, geen namaak-DOM).
+    // 3. Let an opponent join (same client code, no fake DOM).
     const opponent = await joinAs(code);
-    await waitFor(() => game.state !== null, 'de host start de wedstrijd niet als de tegenstander binnenkomt');
-    console.log('OK: wedstrijd gestart zodra de tegenstander binnenkwam');
+    await waitFor(() => game.state !== null, 'the host does not start the match when the opponent joins');
+    console.log('OK: match started as soon as the opponent joined');
 
-    if (game.transport.localTeam !== 0) throw new Error('de host hoort team 0 (blauw) te zijn');
-    if (opponent.transport.localTeam !== 1) throw new Error('de gast hoort team 1 (rood) te zijn');
+    if (game.transport.localTeam !== 0) throw new Error('the host should be team 0 (blue)');
+    if (opponent.transport.localTeam !== 1) throw new Error('the guest should be team 1 (red)');
 
-    // 4. Allebei laten spelen: de namaakbrowser op 60 fps, de tegenstander op eigen tempo.
+    // 4. Let both play: the fake browser at 60 fps, the opponent at its own pace.
     const TARGET = 700;
     const opponentLoop = runOpponent(opponent, TARGET);
     for (let i = 0; i < 1400 && game.state.tick < TARGET; i++) {
       pumpFrame();
-      if (i % 4 === 0) await sleep(0); // het netwerk lucht geven
+      if (i % 4 === 0) await sleep(0); // give the network some air
     }
     await opponentLoop;
 
-    console.log(`OK: ${game.state.tick} ticks in de namaakbrowser, ${opponent.state.tick} bij de tegenstander`);
-    console.log(`     ping ${game.transport.ping} ms, delay ${game.transport.delay} ticks, wachtbeurten ${game.transport.stalls}`);
+    console.log(`OK: ${game.state.tick} ticks in the fake browser, ${opponent.state.tick} at the opponent`);
+    console.log(`     ping ${game.transport.ping} ms, delay ${game.transport.delay} ticks, stalls ${game.transport.stalls}`);
 
     if (game.state.tick < TARGET * 0.8) {
-      console.error(`FAIL: de online wedstrijd komt niet vooruit (tick ${game.state.tick})`);
+      console.error(`FAIL: the online match is not progressing (tick ${game.state.tick})`);
       failed = true;
     }
     if (game.transport.desync || opponent.transport.desync) {
-      console.error('FAIL: desync tussen de twee spelers');
+      console.error('FAIL: desync between the two players');
       failed = true;
     } else {
-      console.log('OK: beide spelers berekenen dezelfde wedstrijd');
+      console.log('OK: both players compute the same match');
     }
     if (el('netend').classList.contains('hidden') === false) {
-      console.error('FAIL: het foutscherm (verbinding weg / desync) staat in beeld');
+      console.error('FAIL: the error overlay (connection lost / desync) is on screen');
       failed = true;
     }
     if (el('menu').classList.contains('hidden') !== true) {
-      console.error('FAIL: het menu staat nog in beeld tijdens de wedstrijd');
+      console.error('FAIL: the menu is still on screen during the match');
       failed = true;
     }
 
-    // 5. Tegenstander weg -> foutscherm hoort te verschijnen.
+    // 5. Opponent leaves -> the error overlay should appear.
     opponent.transport.dispose();
     await waitFor(() => {
       pumpFrame();
       return !el('netend').classList.contains('hidden');
-    }, 'foutscherm verschijnt niet als de tegenstander weggaat', 4000);
-    console.log('OK: "tegenstander weg" wordt netjes afgevangen');
+    }, 'the error overlay does not appear when the opponent leaves', 4000);
+    console.log('OK: "opponent gone" is handled cleanly');
   } finally {
     server.kill();
   }
@@ -216,7 +216,7 @@ async function joinAs(code) {
     peer.transport = new OnlineTransport({ signal, devices: peer.devices, localTeam: 1 });
   });
   signal.join(code);
-  await waitFor(() => peer.state !== null, 'de tegenstander krijgt geen aftrap');
+  await waitFor(() => peer.state !== null, 'the opponent never got a kickoff');
   return peer;
 }
 

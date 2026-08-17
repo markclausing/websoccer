@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Arcade voetbalgame in HTML/JavaScript met lokale en online multiplayer, gebouwd op een deterministische simulatie.",
+  "description": "Arcade football game in HTML/JavaScript with local and online multiplayer, built on a deterministic simulation.",
   "scripts": {
     "start": "node server/relay.js",
     "test": "node tools/simtest.js && node tools/netcheck.js && node tools/uicheck.js",

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
-// Minimale WebSocket-implementatie (RFC 6455), genoeg voor tekstberichten.
-// Bewust zonder npm-dependencies: `node server/relay.js` en klaar.
+// Minimal WebSocket implementation (RFC 6455), enough for text messages.
+// Deliberately without npm dependencies: `node server/relay.js` and you are set.
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -9,7 +9,7 @@ export function acceptKey(key) {
   return crypto.createHash('sha1').update(key + GUID).digest('base64');
 }
 
-/** Antwoordt op een HTTP Upgrade-verzoek en maakt er een WebSocket van. */
+/** Answers an HTTP Upgrade request and turns it into a WebSocket. */
 export function handshake(req, socket) {
   const key = req.headers['sec-websocket-key'];
   if (req.headers.upgrade?.toLowerCase() !== 'websocket' || !key) {
@@ -22,13 +22,13 @@ export function handshake(req, socket) {
     + 'Connection: Upgrade\r\n'
     + `Sec-WebSocket-Accept: ${acceptKey(key)}\r\n\r\n`,
   );
-  // Zonder Nagle: inputpakketjes zijn klein en moeten meteen weg.
+  // No Nagle: input packets are tiny and must leave immediately.
   socket.setNoDelay(true);
   return true;
 }
 
 /**
- * Bouwt een frame. Client->server moet gemaskeerd zijn, server->client niet.
+ * Builds a frame. Client->server must be masked, server->client must not be.
  */
 export function encodeFrame(text, { mask = false, opcode = 0x1 } = {}) {
   const payload = Buffer.from(text, 'utf8');
@@ -63,8 +63,8 @@ export function closeFrame() {
 }
 
 /**
- * Streaming parser: TCP levert geen berichten maar bytes, dus frames kunnen
- * gesplitst of geplakt aankomen. Geeft een functie terug die je per chunk voert.
+ * Streaming parser: TCP delivers bytes, not messages, so frames can arrive split
+ * up or glued together. Returns a function you feed each chunk to.
  */
 export function createParser({ onMessage, onClose, onPing }) {
   let buf = Buffer.alloc(0);
@@ -99,22 +99,22 @@ export function createParser({ onMessage, onClose, onPing }) {
         off += 4;
       }
 
-      if (buf.length < off + len) return; // frame nog niet compleet
+      if (buf.length < off + len) return; // frame not complete yet
 
       const payload = Buffer.from(buf.subarray(off, off + len));
       if (key) for (let i = 0; i < payload.length; i++) payload[i] ^= key[i & 3];
       buf = buf.subarray(off + len);
 
       switch (opcode) {
-        case 0x0: // vervolgframe
+        case 0x0: // continuation frame
           fragments.push(payload);
           if (fin) {
             onMessage(Buffer.concat(fragments).toString('utf8'));
             fragments = [];
           }
           break;
-        case 0x1: // tekst
-        case 0x2: // binair
+        case 0x1: // text
+        case 0x2: // binary
           if (fin) onMessage(payload.toString('utf8'));
           else fragments = [payload];
           break;
@@ -125,7 +125,7 @@ export function createParser({ onMessage, onClose, onPing }) {
           onPing?.(payload);
           break;
         default:
-          break; // pong en de rest negeren we
+          break; // pong and the rest are ignored
       }
     }
   };

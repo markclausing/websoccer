@@ -4,10 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeFrame, createParser, encodeFrame, handshake } from './ws.js';
 
-// Eén proces doet twee dingen: de statische bestanden serveren en de inputs
-// tussen twee spelers doorgeven. De server kent het spel niet en houdt geen
-// wedstrijdstand bij - hij is een doorgeefluik. Alle logica draait bij de
-// spelers zelf, want de simulatie is deterministisch.
+// One process does two things: serve the static files and pass inputs between
+// two players. The server knows nothing about the game and keeps no score - it
+// is a relay. All the logic runs on the players' own machines, because the
+// simulation is deterministic.
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 5173;
@@ -29,13 +29,13 @@ const server = http.createServer((req, res) => {
 
   const file = path.join(ROOT, rel);
   if (!file.startsWith(ROOT + path.sep)) {
-    res.writeHead(403).end('Verboden');
+    res.writeHead(403).end('Forbidden');
     return;
   }
 
   fs.readFile(file, (err, data) => {
     if (err) {
-      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Niet gevonden');
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Not found');
       return;
     }
     res.writeHead(200, {
@@ -52,7 +52,7 @@ const server = http.createServer((req, res) => {
 const rooms = new Map();
 let nextId = 1;
 
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // zonder I/O/0/1
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
 
 function makeCode() {
   let code;
@@ -95,7 +95,7 @@ class Conn {
     try {
       this.socket.write(closeFrame());
       this.socket.end();
-    } catch { /* socket was al weg */ }
+    } catch { /* socket was already gone */ }
     leaveRoom(this);
   }
 }
@@ -112,7 +112,7 @@ function leaveRoom(conn) {
   if (other) other.send({ t: 'peerleft' });
   else rooms.delete(conn.room);
 
-  log(`speler ${conn.id} verlaat kamer ${conn.room}`);
+  log(`player ${conn.id} left room ${conn.room}`);
   conn.room = null;
 }
 
@@ -132,7 +132,7 @@ function handleMessage(conn, raw) {
       conn.room = code;
       conn.role = 'host';
       conn.send({ t: 'room', code, role: 'host' });
-      log(`speler ${conn.id} opent kamer ${code}`);
+      log(`player ${conn.id} opened room ${code}`);
       break;
     }
 
@@ -140,11 +140,11 @@ function handleMessage(conn, raw) {
       const code = String(msg.code || '').toUpperCase().trim();
       const room = rooms.get(code);
       if (!room) {
-        conn.send({ t: 'error', msg: `Kamer ${code} bestaat niet` });
+        conn.send({ t: 'error', msg: `Room ${code} does not exist` });
         return;
       }
       if (room.guest || !room.host) {
-        conn.send({ t: 'error', msg: `Kamer ${code} is vol` });
+        conn.send({ t: 'error', msg: `Room ${code} is full` });
         return;
       }
       leaveRoom(conn);
@@ -152,15 +152,15 @@ function handleMessage(conn, raw) {
       conn.room = code;
       conn.role = 'guest';
       conn.send({ t: 'room', code, role: 'guest' });
-      // Allebei laten weten dat de tegenstander er is; de host begint daarna.
+      // Tell both sides the opponent has arrived; the host kicks off after that.
       room.host.send({ t: 'peer' });
       room.guest.send({ t: 'peer' });
-      log(`speler ${conn.id} komt binnen in kamer ${code}`);
+      log(`player ${conn.id} joined room ${code}`);
       break;
     }
 
     default: {
-      // Al het andere (input, start, hash, ping, pong) gaat ongewijzigd door.
+      // Everything else (input, start, hash, ping, pong) is passed on untouched.
       const peer = conn.peer();
       if (peer) peer.send(msg);
       break;
@@ -172,7 +172,7 @@ server.on('upgrade', (req, socket) => {
   if (!handshake(req, socket)) return;
 
   const conn = new Conn(socket);
-  log(`speler ${conn.id} verbonden`);
+  log(`player ${conn.id} connected`);
 
   const feed = createParser({
     onMessage: (text) => handleMessage(conn, text),
@@ -184,7 +184,7 @@ server.on('upgrade', (req, socket) => {
     try {
       feed(chunk);
     } catch (err) {
-      log(`parserfout bij speler ${conn.id}: ${err.message}`);
+      log(`parser error for player ${conn.id}: ${err.message}`);
       conn.close();
     }
   });
@@ -192,7 +192,7 @@ server.on('upgrade', (req, socket) => {
   socket.on('close', () => {
     conn.alive = false;
     leaveRoom(conn);
-    log(`speler ${conn.id} losgekoppeld`);
+    log(`player ${conn.id} disconnected`);
   });
 });
 
@@ -202,6 +202,6 @@ function log(text) {
 }
 
 server.listen(PORT, () => {
-  console.log(`WebSoccer draait op http://localhost:${PORT}/`);
-  console.log('Online spelen: open de pagina in twee tabbladen (of op twee computers in hetzelfde netwerk).');
+  console.log(`WebSoccer running at http://localhost:${PORT}/`);
+  console.log('To play online: open the page in two tabs (or on two computers on the same network).');
 });

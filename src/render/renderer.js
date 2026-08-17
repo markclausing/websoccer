@@ -16,7 +16,7 @@ export class Renderer {
     this.shake = 0;
   }
 
-  /** Camera volgt de bal met een beetje voorsprong; puur cosmetisch, staat los van de sim. */
+  /** Camera follows the ball with a little lead; purely cosmetic, outside the sim. */
   updateCamera(state, instant = false) {
     const b = state.ball;
     const targetX = clamp(b.x + b.vx * 0.16, 0, WORLD_W);
@@ -51,7 +51,7 @@ export class Renderer {
 
     this.drawShadows(ctx, state);
 
-    // Spelers van boven naar beneden, zodat overlap klopt.
+    // Players from top to bottom, so overlaps look right.
     const all = [];
     for (let t = 0; t < 2; t++) {
       state.teams[t].players.forEach((p, i) => all.push({ p, t, i }));
@@ -100,7 +100,7 @@ export class Renderer {
       ctx.scale(1.5, 0.72);
     }
 
-    // Broek
+    // Shorts
     ctx.fillStyle = kit.shorts;
     ctx.beginPath();
     ctx.arc(0, 0, PLAYER_R, 0, Math.PI * 2);
@@ -118,7 +118,7 @@ export class Renderer {
     ctx.arc(0, 0, PLAYER_R, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Hoofd, kijkt in looprichting
+    // Head, facing the way the player runs
     ctx.fillStyle = kit.skin;
     ctx.beginPath();
     ctx.arc(p.dirX * 2.4, p.dirY * 2.4, 3.1, 0, Math.PI * 2);
@@ -131,7 +131,7 @@ export class Renderer {
     ctx.restore();
 
     if (isControlled) {
-      // Pijltje boven de bestuurde speler
+      // Arrow above the player you control
       ctx.fillStyle = t === 0 ? '#9fd0ff' : '#ffc0c0';
       ctx.beginPath();
       ctx.moveTo(p.x, p.y - PLAYER_R - 3);
@@ -180,15 +180,15 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText(text, W / 2, 24);
 
-    // Wie is wie
+    // Who is who
     ctx.font = 'bold 12px "Courier New", monospace';
     ctx.textAlign = 'left';
     let y = 52;
     for (let t = 0; t < 2; t++) {
       const team = state.teams[t];
       let who;
-      if (net) who = t === net.team ? 'JIJ' : 'TEGENSTANDER';
-      else who = team.human ? `SPELER ${t + 1}` : 'CPU';
+      if (net) who = t === net.team ? 'YOU' : 'OPPONENT';
+      else who = team.human ? `PLAYER ${t + 1}` : 'CPU';
       ctx.fillStyle = TEAM_PRESETS[t].shirt;
       ctx.fillRect(12, y - 6, 10, 10);
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -211,7 +211,7 @@ export class Renderer {
 
     if (net.stalling && !net.peerLeft && !net.desync) {
       const W = this.canvas.width;
-      const text = 'WACHTEN OP TEGENSTANDER';
+      const text = 'WAITING FOR OPPONENT';
       ctx.font = 'bold 15px "Courier New", monospace';
       ctx.textAlign = 'center';
       const w = ctx.measureText(text).width + 24;
@@ -250,7 +250,7 @@ export class Renderer {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(rx + state.ball.x * sx - 1, ry + state.ball.y * sy - 1, 2.5, 2.5);
 
-    // Kijkvenster
+    // Viewport
     const vw = (this.canvas.width / ZOOM) * sx;
     const vh = (this.canvas.height / ZOOM) * sy;
     ctx.strokeStyle = 'rgba(255,255,255,0.75)';
@@ -266,9 +266,9 @@ export class Renderer {
 
     let text = state.message;
     if (state.phase === 'goal') {
-      text = `${state.teams[state.lastGoalTeam].name} SCOORT!`;
+      text = `${state.teams[state.lastGoalTeam].name} SCORES!`;
     } else if (state.phase === 'fulltime') {
-      text = `EINDE  ${state.score[0]} - ${state.score[1]}`;
+      text = `FULL TIME  ${state.score[0]} - ${state.score[1]}`;
     }
 
     ctx.font = 'bold 44px "Courier New", monospace';
@@ -279,10 +279,10 @@ export class Renderer {
     ctx.fillText(text, W / 2, H / 2 - 30);
 
     if (state.phase === 'fulltime' && !net) {
-      // Online komt er een eigen scherm overheen met een knop.
+      // Online gets its own overlay with a button instead.
       ctx.font = 'bold 16px "Courier New", monospace';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('Druk op ENTER voor het menu', W / 2, H / 2 + 16);
+      ctx.fillText('Press ENTER for the menu', W / 2, H / 2 + 16);
     }
   }
 }

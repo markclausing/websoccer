@@ -1,6 +1,6 @@
-// Kleine helpers + een deterministische PRNG.
-// BELANGRIJK voor de latere netcode: gebruik NOOIT Math.random() in de simulatie.
-// Alles wat "toevallig" is loopt via state.rng, zodat beide machines hetzelfde resultaat krijgen.
+// Small helpers + a deterministic PRNG.
+// IMPORTANT for the netcode: NEVER use Math.random() inside the simulation.
+// Anything random goes through state.rng, so both machines get the same result.
 
 export function clamp(v, lo, hi) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -28,7 +28,7 @@ export function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-// mulberry32: snel, deterministisch, seed past in één integer (makkelijk te syncen).
+// mulberry32: fast, deterministic, and the seed fits in a single integer (easy to sync).
 export function nextRandom(state) {
   state.rng = (state.rng + 0x6d2b79f5) | 0;
   let t = state.rng;

@@ -3,8 +3,8 @@ import {
   PEN_D, PEN_SPOT, PEN_W, SIX_D, SIX_W, WORLD_H, WORLD_W,
 } from '../constants.js';
 
-// Het veld verandert nooit, dus tekenen we het één keer naar een offscreen canvas
-// en blitten daarna alleen het zichtbare stuk.
+// The pitch never changes, so we draw it once onto an offscreen canvas and then
+// only blit the visible part.
 
 export function buildPitch() {
   const c = document.createElement('canvas');
@@ -26,26 +26,26 @@ export function buildPitch() {
   g.lineWidth = 3;
   g.lineCap = 'butt';
 
-  // Buitenlijnen
+  // Touchlines and goal lines
   g.strokeRect(FIELD.left, FIELD.top, FIELD_W, FIELD_H);
 
-  // Middenlijn + cirkel
+  // Halfway line + centre circle
   line(g, FIELD.left, FIELD.cy, FIELD.right, FIELD.cy);
   circle(g, FIELD.cx, FIELD.cy, CENTER_R);
   dot(g, FIELD.cx, FIELD.cy);
 
   for (const side of [-1, 1]) {
     const gy = side < 0 ? FIELD.top : FIELD.bottom;
-    const dir = side < 0 ? 1 : -1; // richting het veld in
+    const dir = side < 0 ? 1 : -1; // pointing into the pitch
 
-    // Strafschopgebied
+    // Penalty area
     g.strokeRect(FIELD.cx - PEN_W / 2, side < 0 ? gy : gy - PEN_D, PEN_W, PEN_D);
-    // Doelgebied
+    // Six-yard box
     g.strokeRect(FIELD.cx - SIX_W / 2, side < 0 ? gy : gy - SIX_D, SIX_W, SIX_D);
-    // Strafschopstip
+    // Penalty spot
     dot(g, FIELD.cx, gy + dir * PEN_SPOT);
 
-    // Boog buiten het strafschopgebied
+    // Arc outside the penalty area
     g.save();
     g.beginPath();
     if (side < 0) g.rect(FIELD.left, gy + PEN_D, FIELD_W, 200);
@@ -54,7 +54,7 @@ export function buildPitch() {
     circle(g, FIELD.cx, gy + dir * PEN_SPOT, ARC_R);
     g.restore();
 
-    // Hoekbogen
+    // Corner arcs
     for (const sx of [-1, 1]) {
       const cxp = sx < 0 ? FIELD.left : FIELD.right;
       g.beginPath();
@@ -62,7 +62,7 @@ export function buildPitch() {
       g.stroke();
     }
 
-    // Doel + net
+    // Goal + net
     const gx0 = FIELD.cx - GOAL_W / 2;
     const gy0 = side < 0 ? gy - GOAL_DEPTH : gy;
     g.save();

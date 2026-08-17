@@ -1,9 +1,9 @@
 /**
- * Dunne laag boven de WebSocket: kamers openen/joinen en berichten routeren op
- * hun `t`-veld. Kent het spel niet.
+ * Thin layer on top of the WebSocket: create/join rooms and route messages by
+ * their `t` field. Knows nothing about the game.
  *
- * WSImpl is injecteerbaar zodat de headless netwerktest (tools/netcheck.js)
- * dezelfde clientcode kan draaien als de browser.
+ * WSImpl is injectable so the headless network test (tools/netcheck.js) can run
+ * the exact same client code as the browser.
  */
 export class Signal {
   constructor(url, WSImpl = globalThis.WebSocket) {
@@ -39,7 +39,7 @@ export class Signal {
       this.open = false;
       this.emit('close', {});
     };
-    this.ws.onerror = () => this.emit('error', { msg: 'Geen verbinding met de server' });
+    this.ws.onerror = () => this.emit('error', { msg: 'No connection to the server' });
   }
 
   on(type, fn) {
@@ -61,7 +61,7 @@ export class Signal {
     }
     try {
       this.ws.send(JSON.stringify(msg));
-    } catch { /* verbinding is weg; onclose regelt de rest */ }
+    } catch { /* connection is gone; onclose handles the rest */ }
   }
 
   create() {
@@ -76,6 +76,6 @@ export class Signal {
     this.handlers.clear();
     try {
       this.ws.close();
-    } catch { /* al dicht */ }
+    } catch { /* already closed */ }
   }
 }

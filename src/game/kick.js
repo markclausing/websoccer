@@ -5,8 +5,8 @@ import {
 import { clamp, norm } from '../util.js';
 
 /**
- * Eén centrale trap-functie voor zowel mens als CPU, zodat beide exact dezelfde
- * fysica krijgen. power in px/s, lift in px/s (verticaal).
+ * One central kick function for both human and CPU, so both get exactly the same
+ * physics. power in px/s, lift in px/s (vertical).
  */
 export function kickBall(state, teamIdx, playerIdx, dx, dy, power, lift) {
   const p = state.teams[teamIdx].players[playerIdx];
@@ -35,7 +35,7 @@ export function kickBall(state, teamIdx, playerIdx, dx, dy, power, lift) {
   p.dirY = d.y;
 }
 
-/** Vertaalt de laadtijd van de knop naar kracht + hoogte. */
+/** Turns the time the button was held into power + height. */
 export function chargeToShot(charge) {
   const t = clamp(charge / CHARGE_MAX, 0, 1);
   const power = KICK_MIN + (KICK_MAX - KICK_MIN) * t;

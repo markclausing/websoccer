@@ -4,8 +4,8 @@ import {
 import { clamp, dist, dist2, norm, randRange } from '../util.js';
 import { advanceOf, ownGoalY, posFor, targetGoalY } from './state.js';
 
-// De AI draait BINNEN de simulatie en gebruikt alleen state + state.rng.
-// Zo blijft alles deterministisch en werkt hij straks ook onder lockstep-netcode.
+// The AI runs INSIDE the simulation and only reads state + state.rng. That keeps
+// everything deterministic, which is what makes the lockstep netcode work.
 
 function predictBall(state, t = 0.18) {
   const b = state.ball;
@@ -27,7 +27,7 @@ function nearestOpponent(state, teamIdx, x, y) {
   return { player: best, d: Math.sqrt(bestD) };
 }
 
-/** Welke veldspeler van dit team jaagt op de bal? */
+/** Which outfield player of this team chases the ball? */
 export function chaserIndex(state, teamIdx) {
   const team = state.teams[teamIdx];
   const spot = predictBall(state);
@@ -45,7 +45,7 @@ export function chaserIndex(state, teamIdx) {
   return best < 0 ? 1 : best;
 }
 
-/** Formatiepositie, meegeschoven met de bal. */
+/** Formation position, shifted along with the ball. */
 function homeSpot(state, teamIdx, i) {
   const team = state.teams[teamIdx];
   const f = FORMATION[i];
@@ -66,11 +66,11 @@ function keeperMove(state, teamIdx) {
   let tx;
   let ty;
   if (inBox && dist(k.x, k.y, b.x, b.y) < 90) {
-    // Uitkomen op de bal.
+    // Come out for the ball.
     tx = b.x;
     ty = b.y;
   } else {
-    // Op de lijn blijven, meebewegen met de bal maar dicht bij het midden.
+    // Stay on the line, tracking the ball but hugging the middle.
     tx = FIELD.cx + clamp(b.x - FIELD.cx, -GOAL_W / 2 - 14, GOAL_W / 2 + 14) * 0.85;
     const depth = inBox ? 26 : 14;
     ty = gy + team.attackDir * depth;
@@ -79,7 +79,7 @@ function keeperMove(state, teamIdx) {
   return d.l < 3 ? { x: 0, y: 0 } : { x: d.x, y: d.y };
 }
 
-/** Beste medespeler om naar te passen, of null. */
+/** Best team-mate to pass to, or null. */
 function findPassTarget(state, teamIdx, from) {
   const team = state.teams[teamIdx];
   const opp = state.teams[1 - teamIdx];
@@ -93,10 +93,10 @@ function findPassTarget(state, teamIdx, from) {
     if (d < 55 || d > 340) continue;
 
     const forward = (advanceOf(team, m.y) - advanceOf(team, from.y)) * FIELD_H;
-    if (forward < -60) continue; // niet ver terugspelen
+    if (forward < -60) continue; // do not play it far backwards
     const marker = nearestOpponent(state, teamIdx, m.x, m.y).d;
 
-    // Is de passlijn vrij?
+    // Is the passing lane clear?
     let blocked = false;
     for (let s = 0.25; s <= 0.85; s += 0.2) {
       const px = from.x + (m.x - from.x) * s;
@@ -122,10 +122,10 @@ function findPassTarget(state, teamIdx, from) {
 }
 
 /**
- * Beslissing voor de CPU-speler die de bal heeft.
- * Geeft een looprichting terug plus eventueel een trap. De trap wordt hier NIET
- * uitgevoerd: sim.js voert alle trappen pas uit nadat alle 22 spelers hun
- * intentie op dezelfde snapshot hebben bepaald.
+ * Decision for the CPU player who has the ball.
+ * Returns a running direction plus an optional kick. The kick is NOT executed
+ * here: sim.js carries out every kick only after all 22 players have decided
+ * their intent from the same snapshot.
  */
 function ownerAction(state, teamIdx, i) {
   const team = state.teams[teamIdx];
@@ -135,7 +135,7 @@ function ownerAction(state, teamIdx, i) {
   const dGoal = dist(p.x, p.y, goalX, goalY);
   const pressure = nearestOpponent(state, teamIdx, p.x, p.y).d;
 
-  // Keeper: even vasthouden, dan ver uittrappen.
+  // Keeper: hold on to it briefly, then hoof it upfield.
   if (p.role === 'gk') {
     if (p.holdTicks > 34) {
       const mate = findPassTarget(state, teamIdx, p);
@@ -148,11 +148,11 @@ function ownerAction(state, teamIdx, i) {
     return { x: away.x * 0.4, y: away.y };
   }
 
-  // Eerst even aannemen en dribbelen: zonder deze rem tikt de AI de bal meteen
-  // weer weg en pingpongt het spel op de middenlijn.
+  // Settle the ball and dribble first: without this brake the AI knocks the ball
+  // straight back out again and the game turns into midfield ping-pong.
   const settled = p.holdTicks >= 14;
 
-  // Schieten (mag eerder dan passen: een eerste-tijds schot is prima).
+  // Shooting (allowed sooner than passing: a first-time shot is fine).
   const shootRange = 265;
   if (p.holdTicks >= 5 && dGoal < shootRange && Math.abs(p.x - goalX) < 210) {
     const aimX = goalX + randRange(state, -GOAL_W / 2 + 12, GOAL_W / 2 - 12);
@@ -161,7 +161,7 @@ function ownerAction(state, teamIdx, i) {
     return { x: d.x, y: d.y, kick: { dx: d.x, dy: d.y, power: 760, lift } };
   }
 
-  // Onder druk: passen.
+  // Under pressure: pass.
   if (settled && pressure < 52) {
     const mate = findPassTarget(state, teamIdx, p);
     if (mate) {
@@ -172,7 +172,7 @@ function ownerAction(state, teamIdx, i) {
     }
   }
 
-  // Anders: dribbelen richting doel, langs de zijkant als het midden vol staat.
+  // Otherwise: dribble towards goal, going wide if the middle is crowded.
   let tx = goalX;
   let ty = goalY;
   if (dGoal > 300) {
@@ -180,7 +180,7 @@ function ownerAction(state, teamIdx, i) {
   }
   const opp = nearestOpponent(state, teamIdx, p.x, p.y);
   if (opp.player && opp.d < 70) {
-    // Zijwaarts uitwijken.
+    // Sidestep.
     const away = norm(p.x - opp.player.x, p.y - opp.player.y);
     tx += away.x * 120;
     ty += away.y * 40;
@@ -191,8 +191,8 @@ function ownerAction(state, teamIdx, i) {
 }
 
 /**
- * Bepaalt de looprichting van één AI-speler. Kan ook een trap uitvoeren
- * (als deze speler de bal heeft en het een CPU-team is).
+ * Works out the running direction for one AI player, and may return a kick
+ * (when this player has the ball and the team is CPU-controlled).
  */
 export function aiMove(state, teamIdx, i, opts = {}) {
   const team = state.teams[teamIdx];
@@ -207,13 +207,13 @@ export function aiMove(state, teamIdx, i, opts = {}) {
 
   if (iHaveBall) {
     if (opts.allowKicks) return ownerAction(state, teamIdx, i);
-    // Menselijk team: deze speler wordt door de mens bestuurd, dus niets doen.
+    // Human team: this player is being controlled by the human, so do nothing.
     return { x: 0, y: 0 };
   }
 
   if (p.role === 'gk') return keeperMove(state, teamIdx);
 
-  // Zonder bal: de dichtstbijzijnde speler jaagt, de rest houdt formatie.
+  // Without the ball: the nearest player chases, the rest hold their shape.
   if (!weHaveBall && i === chaserIndex(state, teamIdx)) {
     const spot = predictBall(state, clamp(dist(p.x, p.y, b.x, b.y) / 400, 0.05, 0.35));
     const d = norm(spot.x - p.x, spot.y - p.y);
@@ -225,10 +225,10 @@ export function aiMove(state, teamIdx, i, opts = {}) {
   let ty = home.y;
 
   if (weHaveBall) {
-    // Aanspeelbaar worden: iets richting het doel van de tegenstander opschuiven.
+    // Get available: push up a little towards the opponent's goal.
     ty += team.attackDir * 26;
   } else {
-    // Verdedigen: tussen de bal en het eigen doel gaan staan.
+    // Defend: get between the ball and our own goal.
     const gy = ownGoalY(team);
     tx += (b.x - tx) * 0.18;
     ty += (gy - ty) * 0.10;
@@ -240,7 +240,7 @@ export function aiMove(state, teamIdx, i, opts = {}) {
   return { x: d.x * gain, y: d.y * gain };
 }
 
-/** Mag deze AI-speler een sliding inzetten? Alleen dicht bij de balbezitter. */
+/** May this AI player go in for a slide tackle? Only near the ball carrier. */
 export function aiWantsSlide(state, teamIdx, i) {
   const b = state.ball;
   if (!b.owner || b.owner.team === teamIdx) return false;
@@ -249,7 +249,7 @@ export function aiWantsSlide(state, teamIdx, i) {
   const carrier = state.teams[b.owner.team].players[b.owner.idx];
   const d = dist(p.x, p.y, carrier.x, carrier.y);
   if (d > 34 || d < 12) return false;
-  // In eigen helft agressiever.
+  // More aggressive in our own half.
   const own = advanceOf(state.teams[teamIdx], p.y) < 0.4;
   return randRange(state, 0, 1) < (own ? 0.05 : 0.02);
 }

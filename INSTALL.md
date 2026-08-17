@@ -1,74 +1,73 @@
-# Installatiehandleiding
+# Installation guide
 
-WebSoccer heeft **geen dependencies** en **geen buildstap**. Je hebt alleen
-Node.js nodig om de server te draaien; de game zelf draait gewoon in de browser.
+WebSoccer has **no dependencies** and **no build step**. All you need is Node.js
+to run the server; the game itself just runs in the browser.
 
-## 1. Vereisten
+## 1. Requirements
 
-| Wat            | Versie                                                       |
-| -------------- | ------------------------------------------------------------ |
-| Node.js        | 20 of nieuwer (22+ aanbevolen, nodig voor `npm test`)         |
-| Browser        | Elke moderne browser (Chrome, Firefox, Safari, Edge)          |
+| What    | Version                                                |
+| ------- | ------------------------------------------------------ |
+| Node.js | 20 or newer (22+ recommended, required for `npm test`) |
+| Browser | Any modern browser (Chrome, Firefox, Safari, Edge)     |
 
-Controleer je versie:
+Check your version:
 
 ```bash
 node --version
 ```
 
-Heb je nog geen Node? Haal het op bij [nodejs.org](https://nodejs.org/) of, op
-macOS met Homebrew: `brew install node`.
+No Node yet? Get it from [nodejs.org](https://nodejs.org/) or, on macOS with
+Homebrew: `brew install node`.
 
-> **Waarom 22+ voor de tests?** De netwerktest gebruikt de `WebSocket` die sinds
-> Node 22 standaard ingebouwd zit. De game en de server werken prima op Node 20.
+> **Why 22+ for the tests?** The network test uses the `WebSocket` that ships
+> built into Node from version 22. The game and the server run fine on Node 20.
 
-## 2. Ophalen
+## 2. Getting the code
 
-Met git:
+With git:
 
 ```bash
 git clone https://github.com/markclausing/websoccer.git
 cd websoccer
 ```
 
-Of download de ZIP via de groene **Code**-knop op GitHub en pak hem uit.
+Or download the ZIP from the green **Code** button on GitHub and unpack it.
 
-Er is **geen `npm install`** nodig — er zijn geen packages om te installeren.
+There is **no `npm install`** — there are no packages to install.
 
-## 3. Starten
+## 3. Running it
 
 ```bash
 npm start
 ```
 
-Je ziet:
+You will see:
 
 ```
-WebSoccer draait op http://localhost:5173/
+WebSoccer running at http://localhost:5173/
 ```
 
-Open die link in je browser en klik op **AFTRAP**. Klaar.
+Open that link in your browser and hit **KICK OFF**. Done.
 
-Liever zonder npm? `node server/relay.js` doet precies hetzelfde.
+Prefer to skip npm? `node server/relay.js` does exactly the same thing.
 
-### Een andere poort gebruiken
+### Using a different port
 
 ```bash
 PORT=8080 npm start
 ```
 
-## 4. Online tegen elkaar spelen
+## 4. Playing online
 
-De server die de pagina serveert, koppelt ook de spelers. Er is verder niets
-nodig.
+The server that serves the page also pairs up the players. Nothing else is
+needed.
 
-**Op één computer (om te testen)**
-Open http://localhost:5173/ in twee tabbladen. In het ene tabblad: *Online →
-Nieuwe wedstrijd openen*. Neem de code over in het andere tabblad en klik op
-*Deelnemen*.
+**On one computer (to try it out)**
+Open http://localhost:5173/ in two tabs. In one tab: *Online → Open a new match*.
+Copy the code into the other tab and click *Join*.
 
-**Twee computers in hetzelfde netwerk**
-Zoek het IP-adres van de computer waar de server draait:
+**Two computers on the same network**
+Find the IP address of the machine running the server:
 
 ```bash
 ipconfig getifaddr en0     # macOS (wifi)
@@ -76,14 +75,14 @@ hostname -I                # Linux
 ipconfig                   # Windows
 ```
 
-De tweede speler opent `http://<dat-ip>:5173/`. De pagina verbindt automatisch
-terug naar de server waar hij vandaan komt. Laat de firewall poort 5173 toe als
-je erom gevraagd wordt.
+The second player opens `http://<that-ip>:5173/`. The page automatically connects
+back to the server it came from. Allow port 5173 through the firewall if you are
+asked to.
 
-**Over internet**
-Zet het project op een server (een kleine VPS is ruim voldoende) en draai daar
-`npm start`. Zet je er een reverse proxy voor, zorg dan dat die WebSocket-
-verkeer doorlaat. Voor nginx:
+**Over the internet**
+Put the project on a server (a small VPS is plenty) and run `npm start` there. If
+you put a reverse proxy in front of it, make sure it passes WebSocket traffic
+through. For nginx:
 
 ```nginx
 location / {
@@ -95,47 +94,46 @@ location / {
 }
 ```
 
-Achter HTTPS schakelt de client vanzelf over op `wss://`.
+Behind HTTPS the client switches to `wss://` by itself.
 
-Wil je alleen even snel iemand laten meespelen zonder server, dan werkt een
-tunnel ook: `ssh -R 80:localhost:5173 serveo.net` of `ngrok http 5173`.
+If you only want to let someone join quickly without setting up a server, a
+tunnel works too: `ssh -R 80:localhost:5173 serveo.net` or `ngrok http 5173`.
 
-## 5. Tests draaien
+## 5. Running the tests
 
 ```bash
-npm test           # alle drie de suites
-npm run test:sim   # simulatie + determinisme
-npm run test:net   # twee echte spelers via de echte server
-npm run test:ui    # de browserkant tegen een namaak-DOM
+npm test           # all three suites
+npm run test:sim   # simulation + determinism
+npm run test:net   # two real players through the real server
+npm run test:ui    # the browser side against a fake DOM
 ```
 
-Ze draaien allemaal zonder browser en zonder dependencies.
+They all run without a browser and without dependencies.
 
-## Problemen oplossen
+## Troubleshooting
 
 **`Error: listen EADDRINUSE: address already in use :::5173`**
-Er draait al iets op die poort. Stop het:
+Something is already running on that port. Stop it:
 
 ```bash
 lsof -ti:5173 | xargs kill     # macOS / Linux
 ```
 
-Of kies een andere poort: `PORT=8080 npm start`.
+Or pick another port: `PORT=8080 npm start`.
 
-**Ik open `index.html` rechtstreeks en zie een leeg scherm**
-Dat kan niet werken: browsers blokkeren ES-modules via `file://`, en online
-spelen heeft de server sowieso nodig. Gebruik `npm start`.
+**I opened `index.html` directly and got a blank screen**
+That cannot work: browsers block ES modules over `file://`, and playing online
+needs the server anyway. Use `npm start`.
 
-**De andere computer krijgt de pagina niet te zien**
-Meestal de firewall. Controleer ook of je het juiste IP-adres gebruikt en of
-beide computers echt in hetzelfde netwerk zitten (gastennetwerken van routers
-zijn vaak afgeschermd).
+**The other computer cannot load the page**
+Usually the firewall. Also check that you are using the right IP address and that
+both computers really are on the same network (router guest networks are often
+isolated).
 
-**"WACHTEN OP TEGENSTANDER" blijft in beeld staan**
-De inputs van je tegenstander komen niet aan. Bij een korte hapering lost dat
-zichzelf op; blijft het staan, dan is de verbinding weg. Dat is geen bug maar
-opzet: het spel wacht liever even dan dat het gaat gokken en jullie twee
-verschillende wedstrijden gaan spelen.
+**"WAITING FOR OPPONENT" stays on screen**
+Your opponent's inputs are not arriving. A brief hiccup sorts itself out; if it
+stays, the connection is gone. That is by design, not a bug: the game would
+rather wait than guess and have the two of you playing different matches.
 
-**`SyntaxError` of `ReferenceError` bij het starten**
-Vrijwel altijd een te oude Node. Check `node --version`.
+**A `SyntaxError` or `ReferenceError` on startup**
+Almost always an outdated Node. Check `node --version`.
