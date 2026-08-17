@@ -56,16 +56,39 @@ How it feels:
 - The button **without the ball** is a slide tackle.
 - You automatically control whoever is nearest the ball.
 
-There are goals, throw-ins, corners, goal kicks, half time and a final whistle.
-No offside and no fouls — deliberately, just like the originals.
+There are goals, throw-ins, corners, goal kicks, half time and a final whistle,
+and **offside** is called (you can switch it off in the menu). No fouls: slide
+tackles are free, deliberately, just like the originals.
+
+A few things follow the real rules rather than arcade convention, because they
+kept spoiling matches:
+
+- At a kickoff, throw-in, corner or goal kick the opposition **has to stay off
+  the ball** until the side taking it has touched it. They drop back rather than
+  crowd around it.
+- Once a **keeper has the ball**, the opposition backs off instead of tackling it
+  out of his hands — but only for about six seconds, after which they may close
+  him down again.
+- The keeper makes his own saves. You take over the moment he has the ball, so
+  the clearance is yours, but you are never dropped into goal just as a shot
+  comes in.
+
+## Pace
+
+The whole game runs at 90% speed (`PACE` in `src/constants.js`). It is a single
+knob on the clock the physics runs on: the pitch, the shooting ranges and every
+timing in ticks stay exactly where they were, so nothing plays differently, it
+just gives you more time on the ball. Set it back to 1 if you want the original
+tempo.
 
 ## CPU difficulty
 
 Playing against the CPU you can pick **Easy**, **Normal** or **Hard**. Hard is the
 original opponent, untouched; the other two are genuinely weaker rather than just
-slower. Measured by letting each level play HARD 60 times, the share of the goals
-they manage to score comes out around 50% (hard against itself), 33% (normal) and
-14% (easy).
+slower. The yardstick is territory — the share of playing time the ball spends in
+the opponent's half — because at roughly two goals a match the scoreline is far
+too noisy to tune against. Each level playing HARD comes out at 49% (hard against
+itself), 38% (normal) and 30% (easy).
 
 The strongest lever by far is reaction time: an easier CPU chases the ball where
 it was a few ticks ago, so it wins possession back far less often. On top of that

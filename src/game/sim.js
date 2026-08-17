@@ -3,7 +3,9 @@ import {
   CONTROL_R, CONTROL_Z, CROSSBAR_H, DOWN_TICKS, DRIBBLE_DIST, DRIBBLE_LERP, DT,
   FIELD, GOAL_CELEBRATION_TICKS, GOAL_DEPTH, GOAL_W, GRAVITY, GROUND_FRICTION,
   HALFTIME_TICKS, KEEPER_CONTROL_R, KEEPER_CONTROL_Z, KEEPER_SPEED, PEN_D, PEN_W,
-  PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED, PLAYER_SPEED_BALL, RESTART_TICKS,
+  KEEPER_HOLD_MAX, KEEPER_HOLD_TICKS, PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED,
+  PLAYER_SPEED_BALL, PROTECT_TICKS,
+  RESTART_TICKS,
   SIX_D, SLIDE_COOLDOWN, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY, WORLD_H, WORLD_W,
 } from '../constants.js';
 import { clamp, dist, dist2, len, norm } from '../util.js';
@@ -11,6 +13,7 @@ import { maskToDir } from '../input.js';
 import { aiMove, aiWantsSlide } from './ai.js';
 import { chargeToShot, kickBall } from './kick.js';
 import { setupKickoff } from './state.js';
+import { clearOffside } from './offside.js';
 
 /**
  * The only place where the match changes.
@@ -27,6 +30,7 @@ export function step(state, inputs) {
 
   const frozen = state.phase !== 'play';
 
+  updateProtection(state);
   updateOwnership(state);
   updatePlayers(state, inputs, frozen);
   separatePlayers(state);
@@ -94,6 +98,8 @@ function updateClock(state) {
 function canControl(state, team, p) {
   const b = state.ball;
   if (p.down > 0 || p.slide > 0 || p.cooldown > 0) return false;
+  // A restart that has not been taken, or a keeper with the ball: hands off.
+  if (b.protectedFor !== null && b.protectedFor !== team.index) return false;
   const isKeeper = p.role === 'gk';
   const r = isKeeper ? KEEPER_CONTROL_R : CONTROL_R;
   const zMax = isKeeper ? KEEPER_CONTROL_Z : CONTROL_Z;
@@ -114,6 +120,11 @@ function updateOwnership(state) {
       p.charge = 0;
     } else {
       p.holdTicks++;
+      // Topped up for as long as he really has it, but not past the six second
+      // rule: after that the opposition may close him down again.
+      if (p.role === 'gk' && p.holdTicks < KEEPER_HOLD_MAX) {
+        protectFor(state, b.owner.team, 'untilPlayed', KEEPER_HOLD_TICKS);
+      }
       return;
     }
   }
@@ -138,7 +149,42 @@ function updateOwnership(state) {
     b.kicker = null;
     const p = state.teams[best.team].players[best.idx];
     p.holdTicks = 0;
+
+    if (p.offside) {
+      whistleOffside(state, best.team, p);
+      return;
+    }
+    // Anyone touching the ball ends the previous pass, flags and all.
+    clearOffside(state);
+
+    // A restart is over the moment the taker has the ball: that is the touch
+    // that puts it back in play.
+    if (b.protectedFor === best.team && b.protectMode === 'untilTouch') {
+      clearProtection(state);
+    }
+
+    // A keeper who has gathered the ball gets to clear it in peace.
+    if (p.role === 'gk') protectFor(state, best.team, 'untilPlayed', KEEPER_HOLD_TICKS);
   }
+}
+
+function protectFor(state, teamIdx, mode, ticks) {
+  const b = state.ball;
+  b.protectedFor = teamIdx;
+  b.protectMode = mode;
+  b.protectTicks = ticks;
+}
+
+function updateProtection(state) {
+  const b = state.ball;
+  if (b.protectedFor === null) return;
+  b.protectTicks--;
+  if (b.protectTicks <= 0) clearProtection(state);
+}
+
+export function clearProtection(state) {
+  state.ball.protectedFor = null;
+  state.ball.protectTicks = 0;
 }
 
 // --------------------------------------------------------------------------
@@ -234,15 +280,15 @@ function updateControlledPlayer(state, t) {
   const cur = team.players[team.controlled];
   if (cur && cur.down === 0 && (cur.slide > 0 || cur.charging)) return;
 
-  const gy = team.attackDir < 0 ? FIELD.bottom : FIELD.top;
-  const keeperEligible = Math.abs(b.y - gy) < PEN_D && Math.abs(b.x - FIELD.cx) < PEN_W / 2;
-
   let best = team.controlled;
   let bestD = Infinity;
   for (let i = 0; i < team.players.length; i++) {
     const p = team.players[i];
     if (p.down > 0) continue;
-    if (i === 0 && !keeperEligible) continue;
+    // The keeper stays on the computer for the save itself - you only take over
+    // once he has the ball, which is handled above. Being dropped into goal at
+    // the moment a shot comes in is nobody's idea of a good time.
+    if (i === 0) continue;
     const d = dist2(b.x, b.y, p.x, p.y);
     if (d < bestD) {
       bestD = d;
@@ -386,7 +432,8 @@ function resolveTackles(state) {
       if (p.slide <= 0) continue;
 
       // Against the ball
-      if (b.z < 20 && dist2(b.x, b.y, p.x, p.y) < (PLAYER_R + BALL_R + 6) ** 2) {
+      const mayTouch = b.protectedFor === null || b.protectedFor === t;
+      if (mayTouch && b.z < 20 && dist2(b.x, b.y, p.x, p.y) < (PLAYER_R + BALL_R + 6) ** 2) {
         if (!b.owner || b.owner.team !== t) {
           const d = norm(p.vx, p.vy);
           const dx = d.l ? d.x : p.dirX;
@@ -555,6 +602,14 @@ function checkGoal(state) {
   return true;
 }
 
+/** Free kick to the other side, taken where the offside player got involved. */
+function whistleOffside(state, teamIdx, player) {
+  const x = clamp(player.x, FIELD.left + 20, FIELD.right - 20);
+  const y = clamp(player.y, FIELD.top + 20, FIELD.bottom - 20);
+  clearOffside(state);
+  setRestart(state, x, y, 1 - teamIdx, 'OFFSIDE');
+}
+
 function checkOutOfPlay(state) {
   const b = state.ball;
   const lastTeam = b.lastTouch ? b.lastTouch.team : state.kickoffTeam;
@@ -600,6 +655,9 @@ function setRestart(state, x, y, teamIdx, message) {
   b.spin = 0;
   b.owner = null;
   b.kicker = null;
+
+  clearOffside(state);
+  protectFor(state, teamIdx, 'untilTouch', PROTECT_TICKS);
 
   state.phase = 'restart';
   state.phaseTimer = RESTART_TICKS;

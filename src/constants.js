@@ -2,7 +2,21 @@
 // 16-bit classics; the camera scrolls along with the ball.
 
 export const TICK_RATE = 60;
-export const DT = 1 / TICK_RATE;
+
+/** Seconds of real time per tick. The game loop paces itself by this. */
+export const FRAME_TIME = 1 / TICK_RATE;
+
+/**
+ * One knob for the overall speed of the game. Below 1 everything happens more
+ * slowly without anything moving differently: the pitch, the shooting ranges and
+ * the timings in ticks all stay exactly where they were, only the clock the
+ * physics runs on is turned down. Friction and damping are per tick, so they are
+ * raised to the same power to keep passes travelling just as far.
+ */
+export const PACE = 0.9;
+
+/** Seconds of game time per tick. Everything in the simulation integrates by this. */
+export const DT = PACE / TICK_RATE;
 
 export const FIELD_W = 640;
 export const FIELD_H = 1000;
@@ -39,7 +53,7 @@ export const PLAYER_ACC = 1500;
 export const PLAYER_SPEED = 176;
 export const PLAYER_SPEED_BALL = 158; // slightly slower with the ball at your feet
 export const KEEPER_SPEED = 168;
-export const PLAYER_DAMP = 0.80;
+export const PLAYER_DAMP = 0.80 ** PACE;
 
 export const SLIDE_TICKS = 26;
 export const SLIDE_SPEED = 260;
@@ -49,11 +63,11 @@ export const DOWN_TICKS = 46;
 // Ball
 export const BALL_R = 4;
 export const GRAVITY = 980;
-export const GROUND_FRICTION = 0.9855; // per tick
-export const AIR_DRAG = 0.9985;
+export const GROUND_FRICTION = 0.9855 ** PACE; // per tick
+export const AIR_DRAG = 0.9985 ** PACE;
 export const BOUNCE_Z = 0.56;
 export const BOUNCE_XY = 0.86;
-export const SPIN_DECAY = 0.985;
+export const SPIN_DECAY = 0.985 ** PACE;
 
 // Ball control
 export const CONTROL_R = 15;
@@ -61,7 +75,7 @@ export const KEEPER_CONTROL_R = 22;
 export const CONTROL_Z = 26;
 export const KEEPER_CONTROL_Z = 52;
 export const DRIBBLE_DIST = 13;
-export const DRIBBLE_LERP = 0.30;
+export const DRIBBLE_LERP = 1 - (1 - 0.30) ** PACE;
 
 // Kicking
 export const CHARGE_MAX = 30; // ticks (0.5s) to reach full power
@@ -82,6 +96,22 @@ export const KICKOFF_TICKS = 50;
 export const RESTART_TICKS = 36;
 export const HALFTIME_TICKS = 150;
 
+// A restart is protected until the taker touches it; this is only the backstop
+// that stops an untaken restart lasting forever.
+export const PROTECT_TICKS = 260;
+
+// A keeper's hold is topped up every tick he actually has the ball, so this is
+// just how long the opposition keeps its distance after he lets go of it. Keep
+// it short: an early version protected him for four seconds after every routine
+// catch, which locked strikers out of every rebound and cost about nine out of
+// ten goals in the match.
+export const KEEPER_HOLD_TICKS = 40;
+
+// ...and the six second rule, roughly: hang on to it longer than this and the
+// opposition is allowed to close in again. Without it a keeper could stand on
+// the ball untouchable for the whole match.
+export const KEEPER_HOLD_MAX = 330;
+
 // CPU difficulty. HARD is the original behaviour and is deliberately left at the
 // neutral values (no delay, no error, multiplier 1), so picking it reproduces the
 // game exactly as it played before difficulties existed.
@@ -89,9 +119,10 @@ export const HALFTIME_TICKS = 150;
 // These only ever apply to a CPU team. Your own AI team-mates always play at full
 // strength - weakening them would make the game harder for you, not easier.
 //
-// Tuned by playing each level against HARD, 60 CPU-vs-CPU matches per level over
-// two separate seed ranges (tools/simtest.js keeps an eye on it). Share of the
-// goals scored: HARD ~50%, NORMAL ~33%, EASY ~14%.
+// Tuned by playing each level against HARD. The yardstick is territory - the
+// share of playing time the ball spends in the opponent's half - because goals
+// are far too rare to measure with: HARD ~49%, NORMAL ~38%, EASY ~30%.
+// tools/simtest.js keeps an eye on it.
 //
 // reactTicks is by far the strongest lever: a team that chases where the ball was
 // three ticks ago barely wins possession back. Everything else is comparatively
@@ -102,26 +133,26 @@ export const AI_LEVELS = {
   easy: {
     key: 'easy',
     label: 'EASY',
-    reactTicks: 3,
-    aimError: 60,
-    passError: 35,
-    settleTicks: 22,
-    shootRange: 195,
-    pressure: 34,
-    speed: 0.88,
-    slideChance: 0.25,
+    reactTicks: 7,
+    aimError: 40,
+    passError: 20,
+    settleTicks: 18,
+    shootRange: 220,
+    pressure: 42,
+    speed: 0.93,
+    slideChance: 0.5,
   },
   normal: {
     key: 'normal',
     label: 'NORMAL',
-    reactTicks: 2,
-    aimError: 20,
-    passError: 8,
-    settleTicks: 16,
-    shootRange: 245,
-    pressure: 48,
-    speed: 0.97,
-    slideChance: 0.7,
+    reactTicks: 4,
+    aimError: 15,
+    passError: 5,
+    settleTicks: 15,
+    shootRange: 250,
+    pressure: 50,
+    speed: 0.98,
+    slideChance: 0.8,
   },
   hard: {
     key: 'hard',

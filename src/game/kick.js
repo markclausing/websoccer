@@ -3,6 +3,7 @@ import {
   LOB_CHARGE, LOB_MAX, PLAYER_R,
 } from '../constants.js';
 import { clamp, norm } from '../util.js';
+import { flagOffside } from './offside.js';
 
 /**
  * One central kick function for both human and CPU, so both get exactly the same
@@ -25,7 +26,15 @@ export function kickBall(state, teamIdx, playerIdx, dx, dy, power, lift) {
   b.spin = 0;
   b.owner = null;
   b.lastTouch = { team: teamIdx, idx: playerIdx };
+  // The ball has been played, so it is everybody's again.
+  if (b.protectedFor === teamIdx) {
+    b.protectedFor = null;
+    b.protectTicks = 0;
+  }
   b.kicker = { team: teamIdx, idx: playerIdx, ticks: AFTERTOUCH_TICKS };
+
+  // Who was beyond the line at the moment it was played?
+  flagOffside(state, teamIdx, playerIdx);
 
   p.cooldown = KICK_COOLDOWN;
   p.charge = 0;

@@ -1,5 +1,6 @@
 import {
-  AI_LEVELS, FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS, KICKOFF_TICKS, TICK_RATE,
+  AI_LEVELS, FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS, KICKOFF_TICKS,
+  PROTECT_TICKS, TICK_RATE,
 } from '../constants.js';
 import { clamp } from '../util.js';
 
@@ -12,6 +13,7 @@ export function createMatch(options = {}) {
     halfSeconds: 120, // real seconds per half (displayed as 45 match minutes)
     humans: [true, false], // [is team 0 human?, is team 1 human?]
     difficulty: 'hard', // only affects CPU teams; a string, or one key per team
+    offside: true, // the offside rule, whistle and all
     ...options,
   };
 
@@ -21,6 +23,7 @@ export function createMatch(options = {}) {
     seed: opts.seed | 0,
     config: {
       halfTicks: Math.round(opts.halfSeconds * TICK_RATE),
+      offside: opts.offside !== false,
     },
     phase: 'kickoff', // kickoff | play | goal | restart | halftime | fulltime
     phaseTimer: KICKOFF_TICKS,
@@ -55,6 +58,13 @@ function newBall() {
     owner: null, // {team, idx}
     lastTouch: null, // {team, idx}
     kicker: null, // {team, idx, ticks} -> who is allowed to apply aftertouch
+    // While set, only this team may touch the ball, and opponents drop off
+    // instead of pressing. Two flavours:
+    //   'untilTouch'  - a restart: over the moment the taker has the ball
+    //   'untilPlayed' - a keeper holding on: over when he clears it
+    protectedFor: null,
+    protectMode: 'untilTouch',
+    protectTicks: 0,
   };
 }
 
@@ -93,7 +103,8 @@ function makeTeam(index, human, attackDir, ai) {
       slide: 0,
       down: 0,
       cooldown: 0,
-      holdTicks: 0, // how long this player has held the ball (for the keeper's clearance)
+      holdTicks: 0,
+      offside: false, // flagged when the ball was last played forward past him // how long this player has held the ball (for the keeper's clearance)
     })),
   };
 }
@@ -139,6 +150,10 @@ export function setupKickoff(state, kickoffTeam) {
   b.spin = 0;
   b.owner = null;
   b.kicker = null;
+  // Nobody may nick the ball off the side kicking off until they have played it.
+  b.protectedFor = kickoffTeam;
+  b.protectMode = 'untilTouch';
+  b.protectTicks = PROTECT_TICKS;
 
   for (const team of state.teams) {
     for (let i = 0; i < team.players.length; i++) {
@@ -159,6 +174,7 @@ export function setupKickoff(state, kickoffTeam) {
       pl.down = 0;
       pl.cooldown = 0;
       pl.holdTicks = 0;
+      pl.offside = false;
     }
     team.controlled = 9;
     team.prevMask = 0;

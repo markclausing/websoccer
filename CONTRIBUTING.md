@@ -109,6 +109,15 @@ it against HARD on its own first. Several plausible-sounding handicaps turned ou
 to do nothing, and holding the keeper back made his team *stronger*, which is why
 the keeper plays the same at every level.
 
+Measure with territory, not goals. Two goals a match is far too coarse a signal:
+consecutive runs of the same settings came out anywhere between 0% and 60% of the
+goals, while territory lands within a point or two every time.
+
+Watch out for tipping points in the team shape. Making the defending side drop
+off by 0.15 of the distance to their own goal scores 2.4 goals a match; 0.20 tips
+the whole side behind the ball, the formation never comes back up, and it scores
+0.5. Small changes around positioning are not safely small.
+
 ## Code style
 
 There is deliberately no linter in your way; keep it simple and consistent with

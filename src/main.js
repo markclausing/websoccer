@@ -1,4 +1,4 @@
-import { DT } from './constants.js';
+import { FRAME_TIME } from './constants.js';
 import { InputDevices } from './input.js';
 import { createMatch } from './game/state.js';
 import { step } from './game/sim.js';
@@ -54,14 +54,16 @@ function startLocal({ players, halfSeconds }) {
     halfSeconds,
     humans: [true, players === 2],
     difficulty,
+    offside,
   });
   beginMatch(state, new LocalTransport(devices, players === 2 ? [0, 1] : [0]));
 }
 
-function startOnline({ seed, halfSeconds, localTeam, signal }) {
+function startOnline(opts) {
+  const { seed, halfSeconds, localTeam, signal } = opts;
   // Both teams are "human": no CPU, and exactly the same simulation on both
   // sides. Only the seed and the team assignment come from the host.
-  const state = createMatch({ seed, halfSeconds, humans: [true, true] });
+  const state = createMatch({ seed, halfSeconds, humans: [true, true], offside: opts.offside });
   const transport = new OnlineTransport({ signal, devices, localTeam });
   beginMatch(state, transport);
 }
@@ -93,7 +95,7 @@ function frame(now) {
     game.acc += elapsed;
 
     let guard = 0;
-    while (game.acc >= DT && guard < 8) {
+    while (game.acc >= FRAME_TIME && guard < 8) {
       const tick = game.state.tick;
 
       // Always record and send our own input first - even when we have to wait
@@ -104,13 +106,13 @@ function frame(now) {
 
       step(game.state, game.transport.poll(tick));
       game.transport.afterStep(game.state);
-      game.acc -= DT;
+      game.acc -= FRAME_TIME;
       guard++;
     }
 
     // Do not let the backlog grow: after a hiccup we catch up a few ticks, but
     // we never fast-forward through ten seconds of football.
-    if (guard >= 8 || game.acc > DT * 8) game.acc = Math.min(game.acc, DT * 8);
+    if (guard >= 8 || game.acc > FRAME_TIME * 8) game.acc = Math.min(game.acc, FRAME_TIME * 8);
   }
 
   renderer.draw(game.state, netInfo());
@@ -164,6 +166,14 @@ function checkNetEnd() {
 
 let mode = '1';
 let difficulty = 'normal';
+let offside = true;
+
+document.querySelectorAll('[data-offside]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    offside = btn.dataset.offside === 'on';
+    document.querySelectorAll('[data-offside]').forEach((b) => b.classList.toggle('active', b === btn));
+  });
+});
 
 document.querySelectorAll('[data-difficulty]').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -254,8 +264,9 @@ document.getElementById('host').addEventListener('click', () => {
 
   signal.on('peer', () => {
     const seed = (Date.now() & 0x7fffffff) || 1;
-    signal.send({ t: 'start', seed, halfSeconds: secs });
-    startOnline({ seed, halfSeconds: secs, localTeam: 0, signal });
+    // Goes over the wire so both sides start from identical settings.
+    signal.send({ t: 'start', seed, halfSeconds: secs, offside });
+    startOnline({ seed, halfSeconds: secs, localTeam: 0, signal, offside });
   });
 
   document.getElementById('host').disabled = true;
@@ -273,7 +284,9 @@ document.getElementById('join').addEventListener('click', () => {
 
   signal.on('room', () => setOnlineStatus('Connected. Waiting for kickoff...'));
   signal.on('start', (m) => {
-    startOnline({ seed: m.seed, halfSeconds: m.halfSeconds, localTeam: 1, signal });
+    startOnline({
+      seed: m.seed, halfSeconds: m.halfSeconds, localTeam: 1, signal, offside: m.offside !== false,
+    });
   });
 
   setOnlineStatus('Connecting...');
