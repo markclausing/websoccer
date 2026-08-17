@@ -19,7 +19,11 @@ html, body {
 #wrap {
   position: relative;
   width: 100vw;
+  /* 100vh on iOS counts the browser chrome, so the bottom of the layout - the
+     on-screen controls, the kick off button - ends up under it. dvh is the part
+     you can actually see; the vh line stays as a fallback. */
   height: 100vh;
+  height: 100dvh;
   display: grid;
   place-items: center;
 }
@@ -28,6 +32,7 @@ html, body {
   width: min(100vw, calc(100vh * 900 / 620));
   height: auto;
   max-height: 100vh;
+  max-height: 100dvh;
   image-rendering: pixelated;
   background: #0d3d18;
   outline: none;
@@ -51,6 +56,7 @@ html, body {
 .panel {
   width: min(560px, 92vw);
   max-height: 92vh;
+  max-height: 92dvh;
   overflow: auto;
   padding: 26px 30px;
   background: #12331d;
@@ -228,6 +234,33 @@ button:disabled { opacity: 0.45; cursor: default; }
 button:disabled:hover { background: #1c4a2a; }
 button.primary:disabled:hover { background: #ffe14d; }
 
+/* A phone held sideways is about 400px tall. The panel scrolls, but a button
+   you have to scroll to find is a button nobody presses, so the primary action
+   sticks to the bottom of it and everything else gives up its spare room. */
+button.primary {
+  position: sticky;
+  bottom: -1px;
+  z-index: 2;
+}
+
+@media (max-height: 560px) {
+  .panel { padding: 14px 18px; max-height: 96dvh; }
+  h1 { font-size: 22px; }
+  h1 span { display: inline; margin-left: 8px; }
+  .tag { margin: 4px 0 12px; font-size: 11px; }
+  .row { margin-bottom: 8px; gap: 10px; }
+  .row label { width: 76px; font-size: 11px; }
+  button, select { padding: 6px 10px; font-size: 11px; }
+  button.primary { margin-top: 10px; padding: 11px; font-size: 15px; }
+  .explain, .fineprint, .hints { font-size: 11px; line-height: 1.5; }
+  .keys th, .keys td { padding: 3px 6px; }
+}
+
+/* On a touch device the tips are a wall of text about keys you do not have. */
+@media (pointer: coarse) {
+  .hints { display: none; }
+}
+
 /* --- touch controls --- */
 
 #touch {
@@ -242,8 +275,8 @@ button.primary:disabled:hover { background: #ffe14d; }
 
 #stick {
   position: absolute;
-  left: max(18px, env(safe-area-inset-left));
-  bottom: max(18px, env(safe-area-inset-bottom));
+  left: max(20px, env(safe-area-inset-left));
+  bottom: max(34px, calc(env(safe-area-inset-bottom) + 22px));
   width: 130px;
   height: 130px;
   border: 3px solid rgba(255, 255, 255, 0.35);
@@ -266,8 +299,8 @@ button.primary:disabled:hover { background: #ffe14d; }
 
 #touchButtons {
   position: absolute;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(18px, env(safe-area-inset-bottom));
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(34px, calc(env(safe-area-inset-bottom) + 22px));
   display: flex;
   align-items: flex-end;
   gap: 12px;
