@@ -200,15 +200,31 @@ function setOnlineStatus(text) {
   onlineStatus.textContent = text;
 }
 
+/**
+ * Where to find the relay. By default it is the server that served this page,
+ * which is what `npm start` gives you. On a static host (GitHub Pages and the
+ * like) there is no relay, so `?relay=wss://your-relay.example` lets you point
+ * at one running elsewhere without rebuilding anything.
+ */
+function relayUrl() {
+  const override = new URLSearchParams(location.search || '').get('relay');
+  if (override) return override;
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  return proto + location.host;
+}
+
+const NO_RELAY_HINT = 'Could not reach a relay server. This page is hosted as static files, '
+  + 'so online play needs a relay running somewhere: start one with "npm start" and add '
+  + '?relay=wss://your-relay to this URL. One and two player modes work without it.';
+
 function connect() {
   // An earlier attempt (say a room nobody ever joined) must not linger.
   if (game.signal) game.signal.close();
-  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-  const signal = new Signal(proto + location.host);
+  const signal = new Signal(relayUrl());
   game.signal = signal;
-  signal.on('error', (m) => setOnlineStatus(m.msg || 'Connection error'));
+  signal.on('error', (m) => setOnlineStatus(m.transport ? NO_RELAY_HINT : (m.msg || 'Connection error')));
   signal.on('close', () => {
-    if (!game.state) setOnlineStatus('Lost the connection to the server.');
+    if (!game.state) setOnlineStatus(NO_RELAY_HINT);
   });
   return signal;
 }

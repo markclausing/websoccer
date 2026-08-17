@@ -62,6 +62,11 @@ PORT=8080 npm start
 The server that serves the page also pairs up the players. Nothing else is
 needed.
 
+**Pointing at a relay somewhere else**
+The page connects to whatever server served it. To use a relay running elsewhere
+(handy if you host the static files separately, for instance on GitHub Pages),
+add it to the URL: `?relay=wss://your-relay.example`.
+
 **On one computer (to try it out)**
 Open http://localhost:5173/ in two tabs. In one tab: *Online → Open a new match*.
 Copy the code into the other tab and click *Join*.

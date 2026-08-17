@@ -10,6 +10,10 @@ and **online against each other** using a room code.
 No dependencies, no build step. HTML, CSS and JavaScript exactly as the browser
 receives them.
 
+**[Play it here](https://markclausing.github.io/websoccer/)** — one and two player
+modes run straight from the page. Online multiplayer needs a relay server, which
+static hosting cannot provide; see [Playing online](#playing-online).
+
 ![A blue attack breaking into the red penalty area: the keeper has come off his line, defenders are closing in, and the radar in the top right shows the rest of the pitch](docs/screenshots/gameplay.png)
 
 ## Getting started
@@ -66,6 +70,11 @@ The CPU does not hold back.
    player plays blue.
 3. The other enters the code and clicks **JOIN**. They play red.
 4. As soon as the second player is in, the match starts for both.
+
+This needs the relay server, so it works when you run the game yourself with
+`npm start`. It does **not** work on the GitHub Pages version above: static
+hosting cannot keep a WebSocket open. If you do have a relay running somewhere,
+point any copy of the page at it by adding `?relay=wss://your-relay` to the URL.
 
 Where this works:
 
