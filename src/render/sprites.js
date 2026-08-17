@@ -108,6 +108,25 @@ const TINY = [
   '.b.b.',
 ];
 
+/**
+ * A walk is two frames with the legs in different places. The bottom three rows
+ * are the legs, so swapping those is the whole animation - the body above them
+ * never changes, which is exactly how it was done when every byte counted.
+ */
+const FRONT_LEGS = [
+  ['..PP...PP..', '..ss...ss..', '.bb.....bb.'], // stride
+  ['..PP...PP..', '...ss.ss...', '...bb.bb...'], // feet together
+];
+
+const SIDE_LEGS = [
+  ['..PPPP.....', 'ss....ss...', 'bb....bb...'], // stride, legs well apart
+  ['..PPPP.....', '...ss......', '...bbb.....'], // pushing off, one leg trailing
+];
+
+function withLegs(grid, legs) {
+  return [...grid.slice(0, grid.length - 3), ...legs];
+}
+
 function mirror(grid) {
   return grid.map((row) => [...row].reverse().join(''));
 }
@@ -174,20 +193,34 @@ export function kitSprites(kit, scale, id) {
   const colours = coloursFor(kit);
   const make = (grid) => paint(outlined(grid), colours, scale);
   const sprites = {
+    // Frame 0 is also the standing pose, so a player at rest looks settled
+    // rather than caught mid-step.
+    down0: make(withLegs(DOWN, FRONT_LEGS[0])),
+    down1: make(withLegs(DOWN, FRONT_LEGS[1])),
+    up0: make(withLegs(UP, FRONT_LEGS[0])),
+    up1: make(withLegs(UP, FRONT_LEGS[1])),
+    right0: make(withLegs(SIDE, SIDE_LEGS[0])),
+    right1: make(withLegs(SIDE, SIDE_LEGS[1])),
+    left0: make(mirror(withLegs(SIDE, SIDE_LEGS[0]))),
+    left1: make(mirror(withLegs(SIDE, SIDE_LEGS[1]))),
     down: make(DOWN),
     up: make(UP),
     right: make(SIDE),
     left: make(mirror(SIDE)),
     tiny: make(TINY),
-    // A slide is the same figure lying down, turned a quarter.
+    // A slide is the same figure turned so the head leads the way he is going.
+    // rotate() is a quarter turn clockwise, and the standing figure faces up.
+    slideUp: make(SIDE),
     slideRight: make(rotate(SIDE)),
-    slideLeft: make(rotate(rotate(rotate(mirror(SIDE))))),
-    slideUp: make(rotate(rotate(SIDE))),
-    slideDown: make(SIDE.slice().reverse()),
+    slideDown: make(rotate(rotate(SIDE))),
+    slideLeft: make(rotate(rotate(rotate(SIDE)))),
   };
   cache.set(key, sprites);
   return sprites;
 }
+
+/** How far a player travels between one step and the next, in world pixels. */
+export const STRIDE = 19;
 
 /** Which view to use for a heading. Four ways is what the era had, and it reads. */
 export function facing(dirX, dirY) {

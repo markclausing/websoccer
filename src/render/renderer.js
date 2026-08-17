@@ -4,7 +4,7 @@ import {
 } from '../constants.js';
 import { clamp } from '../util.js';
 import { buildPitch } from './pitch.js';
-import { SPRITE_H, SPRITE_W, facing, kitSprites } from './sprites.js';
+import { STRIDE, facing, kitSprites } from './sprites.js';
 
 const ZOOM = 1.35;
 
@@ -17,6 +17,9 @@ export class Renderer {
     this.shake = 0;
     this.shakeX = 0;
     this.shakeY = 0;
+    // How far each player has run, purely so their legs move. Cosmetic state
+    // belongs here and not in the simulation.
+    this.strides = new Map();
   }
 
   /** Camera follows the ball with a little lead; purely cosmetic, outside the sim. */
@@ -106,8 +109,27 @@ export class Renderer {
     let view = facing(p.dirX, p.dirY);
     if (p.slide > 0 || p.down > 0) {
       view = `slide${view[0].toUpperCase()}${view.slice(1)}`;
+    } else {
+      // Legs tied to distance covered, not to the clock, so the walk speeds up
+      // and slows down with the player and stops dead when he does.
+      const key = t * 100 + i;
+      const run = (this.strides.get(key) || 0) + Math.hypot(p.vx, p.vy) / 60;
+      this.strides.set(key, run);
+      view += Math.floor(run / STRIDE) % 2;
     }
-    const sprite = sprites[view] || sprites.down;
+    const sprite = sprites[view] || sprites.down0;
+
+    // A skid behind him: at this size a prone figure and a running one look too
+    // alike, and the streak is what says "slide" at a glance.
+    if (p.slide > 0) {
+      const fade = Math.min(1, p.slide / 14);
+      ctx.strokeStyle = `rgba(220, 240, 220, ${0.30 * fade})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x - p.dirX * 4, p.y - p.dirY * 4 + 3);
+      ctx.lineTo(p.x - p.dirX * 22, p.y - p.dirY * 22 + 3);
+      ctx.stroke();
+    }
 
     // Drawn in screen space, on whole pixels, so the art stays square.
     ctx.save();

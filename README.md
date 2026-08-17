@@ -129,6 +129,14 @@ profile either way - with the slide made by turning the profile a quarter, which
 is exact for a grid. A dark outline traces the whole figure, without which a blue
 shirt on a green pitch at this size is mostly a smudge.
 
+They walk: two frames per view with the legs in different places, swapped over as
+the player covers ground rather than on a timer, so the stride speeds up and
+slows down with him and stops dead when he does. Only the bottom three rows of
+the grid change between frames, which is how it was done when every byte counted.
+A slide turns the figure so his head leads the way he is going, with a skid
+streaked into the grass behind him - at this size a prone figure and a running
+one look too alike, and the streak is what says "slide" at a glance.
+
 The sprites are baked at the zoom the game runs at and then blitted on whole
 screen pixels. Drawing them in world space would put their edges on fractions of
 a pixel and the resampler would soften away the one thing that makes them pixel

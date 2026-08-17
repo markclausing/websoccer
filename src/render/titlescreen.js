@@ -215,12 +215,14 @@ function drawScene(g) {
 
   // Kept clear of the middle: the menu panel covers roughly a third of the
   // picture there, and a player with his head behind it looks like a mistake.
+  // Mixed frames, so they look like a team in motion rather than a row of
+  // statues: some mid-stride, some with their feet together.
   const near = [
-    [away, 'right', 38, 158],
-    [home, 'up', 62, 152],
-    [home, 'down', ART_W - 62, 156],
-    [away, 'left', ART_W - 34, 150],
-    [home, 'right', ART_W / 2 - 24, ART_H - 4],
+    [away, 'right1', 38, 158],
+    [home, 'up0', 62, 152],
+    [home, 'down1', ART_W - 62, 156],
+    [away, 'left0', ART_W - 34, 150],
+    [home, 'right0', ART_W / 2 - 24, ART_H - 4],
   ];
   for (const [kit, view, x, y] of near) {
     const sprite = kit[view];
