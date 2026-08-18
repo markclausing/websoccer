@@ -203,6 +203,27 @@ make the game harder for you, not easier. The setting only ever applies to a CPU
 team, and `tools/simtest.js` checks that the ladder still holds.
 
 
+## Room to play
+
+Three numbers, measured while the attacking side has the ball in the final third,
+because "it feels crowded" is otherwise impossible to act on:
+
+| | before | now |
+| --- | --- | --- |
+| nearest defender to the man on the ball | 36 px | 71 px |
+| defenders within 70 px of the ball | 1.5 | 0.5 |
+| slide tackles per match | 15 | 4 |
+
+The lines now track back by role - defenders all the way, midfielders about half,
+forwards barely - so a side under pressure keeps its shape instead of piling
+eleven men into its own box, and there is something to pass into.
+
+One thing that looked obviously right and was not: keeping every defender who is
+not chasing at least 58 px off the ball. They all ended up standing at exactly
+that distance in a ring around the carrier, which crowded him more than before
+and dropped scoring to 0.2 goals a match. Spacing the lines apart does the same
+job without the ring.
+
 ## Playing online
 
 1. Both players open the page from the same server.

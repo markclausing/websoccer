@@ -19,6 +19,11 @@ function skillOf(state, teamIdx) {
   return team.human ? AI_LEVELS.hard : team.ai;
 }
 
+// Tried and rejected: keeping every non-chasing defender at least 58px from the
+// ball. They all ended up standing at exactly that distance, in a ring around
+// the carrier, which crowded him more than before and dropped scoring to 0.2
+// goals a match. Spacing the lines apart does the same job without the ring.
+
 function predictBall(state, t = 0.18) {
   const b = state.ball;
   return { x: b.x + b.vx * t, y: b.y + b.vy * t };
@@ -71,7 +76,12 @@ function homeSpot(state, teamIdx, i) {
   // Do not push the floor much higher: 0.15 keeps matches at under two goals,
   // 0.24 lets attackers run straight through for eight a match, and 0.28 for
   // nineteen. A high line only works with defenders who know how to hold it.
-  const shift = (adv - 0.5) * (adv < 0.5 ? 0.32 : 0.55);
+  // How far each line tracks back when the other side has the ball. Defenders
+  // drop all the way, midfielders less, forwards barely: a whole team retreating
+  // into its own box left an attacker no room to pass into and nothing to run
+  // at. Coming forward is unaffected - everyone joins in with that.
+  const retreat = { df: 1, mf: 0.55, fw: 0.25 }[f.role] ?? 1;
+  const shift = (adv - 0.5) * (adv < 0.5 ? 0.32 * retreat : 0.55);
   let yFrac = clamp(f.y + shift, 0.15, 0.95);
   // Stay onside while we have the ball, otherwise the forwards camp behind the
   // defence and the game becomes one long whistle.
@@ -276,6 +286,7 @@ export function aiMove(state, teamIdx, i, opts = {}) {
     const gy = ownGoalY(team);
     tx += (b.x - tx) * 0.18;
     ty += (gy - ty) * (barred ? 0.12 : 0.06);
+
   }
 
   const d = norm(tx - p.x, ty - p.y);

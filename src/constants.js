@@ -159,6 +159,9 @@ export const KEEPER_HOLD_MAX = 330;
 // are far too rare to measure with: HARD ~49%, NORMAL ~38%, EASY ~30%.
 // tools/simtest.js keeps an eye on it.
 //
+// slideChance was halved when slides themselves were made to reach further and
+// connect more often: the same frequency then meant being robbed constantly.
+//
 // reactTicks is by far the strongest lever: a team that chases where the ball was
 // three ticks ago barely wins possession back. Everything else is comparatively
 // mild on its own, but shapes how the level feels to play against - a slower
@@ -175,7 +178,7 @@ export const AI_LEVELS = {
     shootRange: 220,
     pressure: 42,
     speed: 0.93,
-    slideChance: 0.5,
+    slideChance: 0.2,
   },
   normal: {
     key: 'normal',
@@ -187,7 +190,7 @@ export const AI_LEVELS = {
     shootRange: 250,
     pressure: 50,
     speed: 0.98,
-    slideChance: 0.8,
+    slideChance: 0.45,
   },
   hard: {
     key: 'hard',
@@ -199,7 +202,7 @@ export const AI_LEVELS = {
     shootRange: 265,
     pressure: 52,
     speed: 1,
-    slideChance: 1,
+    slideChance: 0.7,
   },
 };
 
