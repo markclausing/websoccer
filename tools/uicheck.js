@@ -285,13 +285,21 @@ async function main() {
       fn();
       return scheduledNodes - before;
     };
+    // The clock has to move between whistles: one refuses to start within a
+    // second of the last, which is what keeps the final whistle to three blasts.
+    const later = () => { engine.ctx.currentTime += 2; };
     const built = {
       whistle: counted(() => effects.whistle('start')),
-      fullTime: counted(() => effects.whistle('end')),
+      repeat: counted(() => effects.whistle('start')), // too soon, must be silent
+      fullTime: (later(), counted(() => effects.whistle('end'))),
       kick: counted(() => effects.kick(900)),
       slide: counted(() => effects.slide()),
       cheer: counted(() => effects.cheer()),
     };
+    if (built.repeat !== 0) {
+      throw new Error(`a whistle inside a second of the last one still sounded (${built.repeat} nodes)`);
+    }
+    delete built.repeat;
     for (const [name, nodes] of Object.entries(built)) {
       if (nodes < 1) throw new Error(`the ${name} sound built nothing`);
     }
