@@ -74,6 +74,20 @@ if (a.state.phase !== 'fulltime') {
 }
 console.log('OK: match played out cleanly through half time to full time');
 
+// The final whistle is reported once. It used to stay in the event list after
+// the match ended, because the list was cleared after the early return rather
+// than before it, and the game loop then played it again on every frame.
+let afterTheEnd = 0;
+for (let i = 0; i < 200; i++) {
+  step(a.state, [0, 0]);
+  afterTheEnd += a.state.events.length;
+}
+if (afterTheEnd > 0) {
+  console.error(`FAIL: ${afterTheEnd} events reported after full time - the whistle repeats`);
+  process.exit(1);
+}
+console.log('OK: nothing is reported once the match is over');
+
 // --- Difficulty ladder -------------------------------------------------------
 //
 // Each level plays a full match against HARD, both sides CPU. What matters is the

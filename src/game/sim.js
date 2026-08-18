@@ -26,10 +26,13 @@ import { assistedAim } from './aim.js';
  * @param {number[]} inputs one bitmask per team slot, e.g. [0b10011, 0]
  */
 export function step(state, inputs) {
+  // Cleared before anything else, including the early return below. Leaving the
+  // list standing at full time meant the final whistle sat in it forever and the
+  // game loop played it again on every frame - a whistle that never stopped.
+  state.events.length = 0;
   if (state.phase === 'fulltime') return state;
 
   state.tick++;
-  state.events.length = 0;
   advancePhase(state);
 
   const frozen = state.phase !== 'play';

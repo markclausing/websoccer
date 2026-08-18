@@ -290,6 +290,7 @@ export class Sfx {
   constructor(engine) {
     this.engine = engine;
     this.lastCheer = -99;
+    this.lastWhistle = -99;
   }
 
   get ctx() {
@@ -306,10 +307,16 @@ export class Sfx {
    */
   whistle(kind = 'start') {
     if (!this.ready()) return;
+    // A second guard, in case anything ever asks for a whistle repeatedly: three
+    // blasts run to 0.8s, and nothing may start another inside a second.
+    const now = this.ctx.currentTime;
+    if (now - this.lastWhistle < 1) return;
+    this.lastWhistle = now;
+
     const blasts = kind === 'end' ? [0, 0.28, 0.56] : kind === 'half' ? [0, 0.28] : [0];
     const length = kind === 'restart' ? 0.16 : 0.24;
     for (const offset of blasts) {
-      const at = this.ctx.currentTime + offset;
+      const at = now + offset;
       for (const freq of [2650, 2720]) { // two tones, so they beat
         const osc = this.engine.tone(freq, at, length, 'sine', 0.16);
         // The rattle: a fast wobble in pitch rather than a clean note.
