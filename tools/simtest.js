@@ -2,11 +2,11 @@
 // Checks (a) that nothing derails (NaN, players outside the world) and (b) that
 // the simulation is deterministic - the precondition for online multiplayer.
 
-import { advanceOf, createMatch, hashState } from '../src/game/state.js';
+import { advanceOf, createMatch, hashState, posFor } from '../src/game/state.js';
 import { step } from '../src/game/sim.js';
 import { kickBall } from '../src/game/kick.js';
 import { assistedAim } from '../src/game/aim.js';
-import { FIELD, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
+import { BTN, FIELD, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
 
 function runMatch(seed, ticks) {
   const state = createMatch({ seed, halfSeconds: 60, humans: [false, false] });
@@ -316,3 +316,79 @@ if (ruleOff !== 'received') {
   process.exit(1);
 }
 console.log('OK: offside is called on the offence and nowhere else');
+
+// --- Getting through --------------------------------------------------------
+//
+// Can you actually attack? A controlled player starts on the halfway line with
+// the ball and drives straight at goal, five lanes across the pitch, twelve
+// seeds. This exists because the obvious suspect turned out to be innocent: the
+// back four barely registered, while fifty-eight of sixty runs ended in a slide
+// tackle. Whole-match goal counts were useless for this - they swing between a
+// shutout and twenty goals on a change of a hundredth - and this scenario has
+// no midfield noise in it at all.
+
+function driveAtGoal() {
+  const lanes = [-0.7, -0.35, 0, 0.35, 0.7];
+  let runs = 0;
+  let box = 0;
+  let slides = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    for (const lane of lanes) {
+      const state = createMatch({
+        seed, halfSeconds: 120, humans: [true, false], difficulty: ['hard', 'hard'],
+      });
+      while (state.phase !== 'play' && state.tick < 600) step(state, [0, 0]);
+
+      const team = state.teams[0];
+      const idx = 9; // the centre forward
+      const p = team.players[idx];
+      const start = posFor(team, lane, 0.5);
+      p.x = start.x;
+      p.y = start.y;
+      team.controlled = idx;
+      const b = state.ball;
+      b.x = p.x;
+      b.y = p.y;
+      b.z = 0;
+      b.vx = 0;
+      b.vy = 0;
+      b.vz = 0;
+      b.owner = { team: 0, idx };
+      p.holdTicks = 30;
+      for (let i = 0; i < 15; i++) step(state, [0, 0]); // let the defence shape up
+
+      const forward = team.attackDir < 0 ? BTN.UP : BTN.DOWN;
+      let best = advanceOf(team, p.y);
+      for (let i = 0; i < 300; i++) {
+        let mask = forward;
+        if (p.x < FIELD.cx - 30) mask |= BTN.RIGHT;
+        else if (p.x > FIELD.cx + 30) mask |= BTN.LEFT;
+        step(state, [mask, 0]);
+        const mine = state.ball.owner && state.ball.owner.team === 0;
+        if (mine) best = Math.max(best, advanceOf(team, state.ball.y));
+        if (!mine || state.phase !== 'play') {
+          if (state.teams[1].players.some((o) => o.slide > 0)) slides++;
+          break;
+        }
+      }
+      runs++;
+      if (best > 0.85) box++;
+    }
+  }
+  return { runs, box: (box / runs) * 100, slides: (slides / runs) * 100 };
+}
+
+console.log('');
+const drive = driveAtGoal();
+console.log(`Running at goal: ${drive.box.toFixed(0)}% of ${drive.runs} runs reached the box, `
+  + `${drive.slides.toFixed(0)}% were ended by a slide`);
+
+if (drive.box < 55) {
+  console.error(`FAIL: only ${drive.box.toFixed(0)}% of runs reached the box - the defence has walled up again`);
+  process.exit(1);
+}
+if (drive.slides > 90) {
+  console.error(`FAIL: ${drive.slides.toFixed(0)}% of runs died to a slide tackle - sliding is dominant again`);
+  process.exit(1);
+}
+console.log('OK: an attacking run gets through often enough, and not every one dies to a slide');

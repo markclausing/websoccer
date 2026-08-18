@@ -161,6 +161,10 @@ export const KEEPER_HOLD_MAX = 330;
 //
 // slideChance was halved when slides themselves were made to reach further and
 // connect more often: the same frequency then meant being robbed constantly.
+// Halved a second time after measuring where an attacking run actually dies: of
+// sixty runs from the halfway line straight at goal, fifty-eight ended in a slide
+// and none in the back four. The wall was never the problem. See TEAMMATE_SLIDE
+// in game/ai.js - only the opponent was slowed down, not your own side.
 //
 // reactTicks is by far the strongest lever: a team that chases where the ball was
 // three ticks ago barely wins possession back. Everything else is comparatively
@@ -178,7 +182,7 @@ export const AI_LEVELS = {
     shootRange: 220,
     pressure: 42,
     speed: 0.93,
-    slideChance: 0.2,
+    slideChance: 0.1,
   },
   normal: {
     key: 'normal',
@@ -190,7 +194,7 @@ export const AI_LEVELS = {
     shootRange: 250,
     pressure: 50,
     speed: 0.98,
-    slideChance: 0.45,
+    slideChance: 0.22,
   },
   hard: {
     key: 'hard',
@@ -202,7 +206,7 @@ export const AI_LEVELS = {
     shootRange: 265,
     pressure: 52,
     speed: 1,
-    slideChance: 0.7,
+    slideChance: 0.35,
   },
 };
 

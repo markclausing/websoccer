@@ -295,16 +295,29 @@ export function aiMove(state, teamIdx, i, opts = {}) {
   return { x: d.x * gain, y: d.y * gain };
 }
 
+/**
+ * How often your own AI team-mates dive in. They are deliberately left at the
+ * frequency every side used before the opponent's was cut: a team-mate who wins
+ * the ball back is help, and slowing him down would make the game harder for
+ * you, not easier.
+ */
+const TEAMMATE_SLIDE = 0.7;
+
 /** May this AI player go in for a slide tackle? Only near the ball carrier. */
 export function aiWantsSlide(state, teamIdx, i) {
   const b = state.ball;
   if (!b.owner || b.owner.team === teamIdx) return false;
-  const p = state.teams[teamIdx].players[i];
+  const team = state.teams[teamIdx];
+  const p = team.players[i];
   if (p.cooldown > 0 || p.slide > 0 || p.down > 0 || p.role === 'gk') return false;
   const carrier = state.teams[b.owner.team].players[b.owner.idx];
   const d = dist(p.x, p.y, carrier.x, carrier.y);
-  if (d > 34 || d < 12) return false;
+  // A slide has to be timed rather than thrown out hopefully from range. At 34
+  // a defender could commit from so far back that running at him was pointless:
+  // he had a free swing at your ankles before you were ever past him.
+  if (d > 28 || d < 12) return false;
   // More aggressive in our own half.
-  const own = advanceOf(state.teams[teamIdx], p.y) < 0.4;
-  return randRange(state, 0, 1) < (own ? 0.05 : 0.02) * skillOf(state, teamIdx).slideChance;
+  const own = advanceOf(team, p.y) < 0.4;
+  const chance = team.human ? TEAMMATE_SLIDE : skillOf(state, teamIdx).slideChance;
+  return randRange(state, 0, 1) < (own ? 0.05 : 0.02) * chance;
 }
