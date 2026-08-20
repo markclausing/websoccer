@@ -26,7 +26,7 @@ const MIN_RANGE = 40;
 const MAX_RANGE = 460;
 
 /** Would this kick end up in the goalmouth? Then it is a shot, not a pass. */
-function aimedAtGoal(state, teamIdx, p, aim) {
+export function aimedAtGoal(state, teamIdx, p, aim) {
   const goalY = targetGoalY(state.teams[teamIdx]);
   const toGoal = goalY - p.y;
   // Pointing away from their goal: cannot be an attempt.

@@ -108,6 +108,22 @@ export const KICK_MIN_DIST = 367; // a tap
 export const KICK_MAX_DIST = 896; // a full blooded shot
 export const LOB_CHARGE = 9; // from this charge on, the ball leaves the ground
 export const LOB_MAX = 320;
+
+// Power and height come off the same button, so the hardest shot was also the
+// highest one - and from the edge of the area a full charge simply sailed over.
+// Measured through the real button path, aiming at a corner: holding for 0.42s
+// scored 48% of the time and holding the full 0.50s scored 5%, with 43% of those
+// going out for a goal kick. Holding the button all the way was punished, and
+// the only warning was a small bar turning red.
+//
+// A shot on goal now climbs no higher than a three quarter charge already did,
+// which leaves the curve reading 0, 11, 5, 16, 32, 38, 48, 43 percent from a tap
+// to a full charge: the collapse at the end is gone and the peak is untouched.
+// Capping harder does not pay - at 160 the ball stays down but beats the keeper
+// less often, and the peak drops to 38%. Lofted balls are left alone: this only
+// applies when you are close enough to be shooting and aiming between the posts.
+export const SHOT_LIFT_MAX = 240;
+export const SHOT_FLAT_RANGE = 300; // beyond this you are hitting it long, not shooting
 export const KICK_COOLDOWN = 16;
 
 /** Launch speed for a ball that should come to rest after `dist` pixels. */

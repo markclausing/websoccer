@@ -2,11 +2,14 @@
 // Checks (a) that nothing derails (NaN, players outside the world) and (b) that
 // the simulation is deterministic - the precondition for online multiplayer.
 
-import { advanceOf, createMatch, hashState, posFor } from '../src/game/state.js';
+import {
+  advanceOf, createMatch, hashState, posFor, targetGoalY,
+} from '../src/game/state.js';
 import { step } from '../src/game/sim.js';
 import { kickBall } from '../src/game/kick.js';
 import { assistedAim } from '../src/game/aim.js';
-import { BTN, FIELD, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
+import { BTN, FIELD, GOAL_W, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
+import { norm } from '../src/util.js';
 
 function runMatch(seed, ticks) {
   const state = createMatch({ seed, halfSeconds: 60, humans: [false, false] });
@@ -392,3 +395,78 @@ if (drive.slides > 90) {
   process.exit(1);
 }
 console.log('OK: an attacking run gets through often enough, and not every one dies to a slide');
+
+// --- Holding the button longer must not be punished ---------------------------
+//
+// Power and height used to come off the same charge, so a full one sailed over
+// the bar: 48% of shots went in at three quarters and 5% at full, the rest out
+// for a goal kick. A shot on goal is now kept down. This drives the real button
+// path - press, hold, release - rather than calling the physics directly, since
+// the cap lives in the code that reads your input.
+
+function shootHolding(hold) {
+  const lanes = [-0.5, -0.25, 0, 0.25, 0.5];
+  let tries = 0;
+  let goals = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    for (const adv of [0.72, 0.80, 0.86, 0.92]) {
+      for (const lane of lanes) {
+        const state = createMatch({
+          seed, halfSeconds: 120, humans: [true, false], difficulty: ['hard', 'hard'],
+        });
+        while (state.phase !== 'play' && state.tick < 600) step(state, [0, 0]);
+        const team = state.teams[0];
+        const idx = 9;
+        const p = team.players[idx];
+        const spot = posFor(team, lane, adv);
+        p.x = spot.x;
+        p.y = spot.y;
+        p.vx = 0;
+        p.vy = 0;
+        const b = state.ball;
+        b.x = p.x;
+        b.y = p.y;
+        b.z = 0;
+        b.vx = 0;
+        b.vy = 0;
+        b.vz = 0;
+        b.owner = { team: 0, idx };
+        p.holdTicks = 30;
+        team.controlled = idx;
+        for (let i = 0; i < 6; i++) step(state, [0, 0]);
+        if (state.phase !== 'play' || !state.ball.owner || state.ball.owner.team !== 0) continue;
+
+        // Facing the far corner, then nothing but the button: no direction keys,
+        // so the ball goes where he is looking, exactly as in a real game.
+        const goalY = targetGoalY(team);
+        const corner = FIELD.cx + (p.x < FIELD.cx ? 1 : -1) * (GOAL_W / 2 - 12);
+        const aim = norm(corner - p.x, goalY - p.y);
+        p.dirX = aim.x;
+        p.dirY = aim.y;
+        tries++;
+
+        const before = state.score[0];
+        for (let i = 0; i < 200; i++) {
+          step(state, [i <= hold ? BTN.FIRE : 0, 0]);
+          if (state.score[0] > before) { goals++; break; }
+          const o = state.ball.owner;
+          if ((o && o.team === 1) || state.phase !== 'play') break;
+        }
+      }
+    }
+  }
+  return (goals / tries) * 100;
+}
+
+console.log('');
+const threeQuarters = shootHolding(25);
+const full = shootHolding(30);
+console.log(`Shooting: three quarter charge scores ${threeQuarters.toFixed(0)}%, `
+  + `a full one ${full.toFixed(0)}%`);
+
+if (full < threeQuarters * 0.7) {
+  console.error(`FAIL: a full charge scores ${full.toFixed(0)}% against ${threeQuarters.toFixed(0)}% `
+    + 'at three quarters - holding the button all the way is being punished again');
+  process.exit(1);
+}
+console.log('OK: hitting it as hard as you can is not a mistake');

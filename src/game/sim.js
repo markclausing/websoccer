@@ -7,6 +7,7 @@ import {
   KEEPER_HOLD_MAX, KEEPER_HOLD_TICKS, PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED,
   PLAYER_SPEED_BALL, PROTECT_TICKS, ROLL_DRAG,
   RESTART_TICKS,
+  SHOT_FLAT_RANGE, SHOT_LIFT_MAX,
   SIX_D, SLIDE_COOLDOWN, SLIDE_DECAY, SLIDE_REACH, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY,
   WORLD_H, WORLD_W,
 } from '../constants.js';
@@ -14,9 +15,9 @@ import { clamp, dist, dist2, len, norm } from '../util.js';
 import { maskToDir } from '../input.js';
 import { aiMove, aiWantsSlide } from './ai.js';
 import { chargeToShot, kickBall } from './kick.js';
-import { setupKickoff } from './state.js';
+import { setupKickoff, targetGoalY } from './state.js';
 import { clearOffside } from './offside.js';
-import { assistedAim } from './aim.js';
+import { aimedAtGoal, assistedAim } from './aim.js';
 
 /**
  * The only place where the match changes.
@@ -385,13 +386,24 @@ function humanIntent(state, t, i, mask) {
           dx: aimed.x,
           dy: aimed.y,
           power: shot.power,
-          lift: shot.lift,
+          lift: shootingAtGoal(state, t, p, aimed) ? Math.min(shot.lift, SHOT_LIFT_MAX) : shot.lift,
         };
       }
     }
   }
 
   return intent;
+}
+
+/**
+ * Close enough to be shooting, and pointing between the posts? Then the kick is
+ * kept down. The range check matters: the same aim from your own half is a long
+ * ball forward, and flattening that would take away every clearance upfield.
+ */
+function shootingAtGoal(state, t, p, aim) {
+  const goalY = targetGoalY(state.teams[t]);
+  if (dist(p.x, p.y, FIELD.cx, goalY) > SHOT_FLAT_RANGE) return false;
+  return aimedAtGoal(state, t, p, aim);
 }
 
 function startSlide(state, p) {
