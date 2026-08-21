@@ -327,7 +327,7 @@ step(state, [maskTeam0, maskTeam1]); // same state + inputs -> always the same r
 
 The simulation is pure and deterministic: a fixed 60 Hz timestep, no DOM, no
 `Math.random()` (all randomness goes through `state.rng`), and input is nothing
-more than a 5-bit mask per player.
+more than a 6-bit mask per player: four directions, kick and switch player.
 
 That is why online multiplayer needed **no** changes to the simulation. The two
 machines only send each other their buttons — never positions, velocities or
