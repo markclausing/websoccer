@@ -286,11 +286,18 @@ export class Chiptune {
  * Match sounds, built from the same two ingredients as the tune: a tone and a
  * band of noise. Nothing here is a recording.
  */
+/** The least time between two lines of commentary, in seconds. */
+const LINE_GAP = 6;
+
 export class Sfx {
-  constructor(engine) {
+  constructor(engine, speech = null) {
     this.engine = engine;
+    this.speech = speech;
     this.lastCheer = -99;
     this.lastWhistle = -99;
+    this.lastLine = -99;
+    // Commentary is off until somebody turns it on, and it stays sparse.
+    this.talking = true;
   }
 
   get ctx() {
@@ -378,11 +385,32 @@ export class Sfx {
   }
 
   /** Everything the simulation reported this frame. */
+  /**
+   * A word from the commentator, if he has not just said something.
+   *
+   * The gap is the whole design. Two lines close together is the difference
+   * between a game with commentary and a game you turn the sound off on, and
+   * anything worth saying happens rarely: a save every few minutes, a run that
+   * covers a third of the pitch. Goals ignore the gap, being the one thing
+   * nobody minds hearing about.
+   */
+  commentary(kind) {
+    if (!this.ready() || !this.talking || !this.speech) return 0;
+    const now = this.ctx.currentTime;
+    if (kind !== 'goal' && now - this.lastLine < LINE_GAP) return 0;
+    this.lastLine = now;
+    // A goal waits for the roar to get going, then talks over it.
+    return this.speech.say(kind, kind === 'goal' ? now + 0.5 : now);
+  }
+
   play(events) {
     if (!this.ready()) return;
     let kicked = false;
     for (const e of events) {
-      if (e.type === 'goal') this.cheer();
+      if (e.type === 'goal') {
+        this.cheer();
+        this.commentary('goal');
+      } else if (e.type === 'save' || e.type === 'run') this.commentary(e.type);
       else if (e.type === 'whistle') this.whistle(e.kind);
       else if (e.type === 'slide') this.slide();
       else if (e.type === 'kick' && !kicked) {

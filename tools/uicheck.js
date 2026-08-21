@@ -12,6 +12,7 @@ import { step } from '../src/game/sim.js';
 import { Signal } from '../src/net/signal.js';
 import { OnlineTransport } from '../src/net/transport.js';
 import { AudioEngine, Chiptune, Sfx, TRACK, noteFreq } from '../src/audio.js';
+import { LINES, Speech } from '../src/speech.js';
 import { TouchControls } from '../src/touch.js';
 import { BTN } from '../src/constants.js';
 import { lineupFrom, shapeOf } from '../src/game/formations.js';
@@ -146,6 +147,8 @@ const audioParam = () => ({
   exponentialRampToValueAtTime() {},
   cancelScheduledValues() {},
   linearRampToValueAtTime() {},
+  // The commentator slides its filters around with this one.
+  setTargetAtTime() {},
 });
 const node = (extra = {}) => ({
   connect(next) { return next; },
@@ -166,7 +169,10 @@ class FakeAudioContext {
     return node({ start() {}, stop() {}, setPeriodicWave() {}, type: 'square' });
   }
   createPeriodicWave() { return {}; }
-  createBiquadFilter() { return node({ type: 'bandpass', Q: { value: 1 }, frequency: audioParam() }); }
+  createBiquadFilter() {
+    scheduledNodes++;
+    return node({ type: 'bandpass', Q: audioParam(), frequency: audioParam() });
+  }
   createBuffer(_c, frames) { return { getChannelData: () => new Float32Array(frames) }; }
   createBufferSource() { scheduledNodes++; return node({ start() {}, stop() {}, buffer: null, loop: false }); }
   resume() {}
@@ -352,6 +358,29 @@ async function main() {
     ]));
     if (viaEvents < 2) throw new Error('events did not reach the synthesiser');
     console.log(`OK: match sounds build (whistle ${built.whistle}, kick ${built.kick}, slide ${built.slide}, crowd ${built.cheer} nodes)`);
+
+    // The commentator. Speech is formant synthesis, so a line is a handful of
+    // filter moves rather than a sample: what can be checked here is that it
+    // builds something, that it keeps quiet when it should, and that the gap
+    // between lines holds.
+    const talker = new Sfx(engine, new Speech(engine));
+    talker.talking = true;
+    engine.ctx.currentTime += 30;
+    const spoken = counted(() => talker.commentary('save'));
+    const tooSoon = counted(() => talker.commentary('run'));
+    engine.ctx.currentTime += 10;
+    const later2 = counted(() => talker.commentary('run'));
+    if (spoken < 3) throw new Error(`a line of commentary built ${spoken} nodes`);
+    if (tooSoon !== 0) throw new Error('two lines of commentary ran into each other');
+    if (later2 < 3) throw new Error('the commentator went quiet after the gap had passed');
+    // A goal is the one thing that never waits its turn.
+    const overGoal = counted(() => talker.commentary('goal'));
+    if (overGoal < 3) throw new Error('a goal did not get a word');
+    talker.talking = false;
+    if (counted(() => talker.commentary('goal')) !== 0) {
+      throw new Error('commentary still speaks when it is switched off');
+    }
+    console.log(`OK: the commentator speaks (${spoken} filter moves a line), waits ${6}s between lines, and can be switched off`);
 
     // 1d. The on-screen controls: a thumb on the stick has to come out as the
     // same bitmask a keyboard would produce.

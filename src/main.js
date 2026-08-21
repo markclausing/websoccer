@@ -16,6 +16,7 @@ import { drawTitleScreen } from './render/titlescreen.js';
 import { LocalTransport, OnlineTransport } from './net/transport.js';
 import { Signal } from './net/signal.js';
 import { AudioEngine, Chiptune, Sfx } from './audio.js';
+import { Speech } from './speech.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 
 const canvas = document.getElementById('game');
@@ -30,7 +31,9 @@ const difficultyRow = document.getElementById('difficultyRow');
 
 const audio = new AudioEngine();
 const music = new Chiptune(audio);
-const sfx = new Sfx(audio);
+const speech = new Speech(audio);
+const sfx = new Sfx(audio, speech);
+sfx.talking = globalThis.localStorage?.getItem('websoccer.commentary') !== 'off';
 let soundOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';
 audio.enabled = soundOn;
 
@@ -593,6 +596,22 @@ document.querySelectorAll('[data-music]').forEach((btn) => {
   });
 });
 
+document.querySelectorAll('[data-commentary]').forEach((btn) => {
+  btn.classList.toggle('active', (btn.dataset.commentary === 'on') === sfx.talking);
+  btn.addEventListener('click', () => {
+    sfx.talking = btn.dataset.commentary === 'on';
+    document.querySelectorAll('[data-commentary]').forEach((b) => b.classList.toggle('active', b === btn));
+    try {
+      globalThis.localStorage?.setItem('websoccer.commentary', sfx.talking ? 'on' : 'off');
+    } catch { /* the setting just will not stick */ }
+    // So you can hear what you just switched on.
+    if (sfx.talking) {
+      audio.wake();
+      sfx.commentary('goal');
+    }
+  });
+});
+
 document.querySelectorAll('[data-offside]').forEach((btn) => {
   btn.addEventListener('click', () => {
     offside = btn.dataset.offside === 'on';
@@ -807,5 +826,7 @@ window.addEventListener('keydown', startMusicOnFirstGesture);
 // Handy when digging into network behaviour: from the console you can inspect
 // __game.transport.ping / .delay / .stalls / .desync.
 if (typeof window !== 'undefined') window.__game = game;
+// For tuning the commentator: __say(['G', 'OW', 'L']) or __say('save').
+window.__say = (what) => (Array.isArray(what) ? speech.speak(what) : speech.say(what));
 
 requestAnimationFrame(frame);

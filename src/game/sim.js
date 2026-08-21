@@ -7,7 +7,7 @@ import {
   KEEPER_HOLD_MAX, KEEPER_HOLD_TICKS, PLAYER_ACC, PLAYER_DAMP, PLAYER_R, PLAYER_SPEED,
   PLAYER_SPEED_BALL, PROTECT_TICKS, ROLL_DRAG,
   RESTART_TICKS,
-  SHOT_FLAT_RANGE, SHOT_LIFT_MAX,
+  RUN_ADVANCE, SAVE_SPEED, SHOT_FLAT_RANGE, SHOT_LIFT_MAX,
   SIX_D, SLIDE_COOLDOWN, SLIDE_DECAY, SLIDE_REACH, SLIDE_SPEED, SLIDE_TICKS, SPIN_DECAY,
   WORLD_H, WORLD_W,
 } from '../constants.js';
@@ -15,7 +15,7 @@ import { clamp, dist, dist2, len, norm } from '../util.js';
 import { maskToDir } from '../input.js';
 import { aiMove, aiWantsSlide } from './ai.js';
 import { chargeToShot, kickBall } from './kick.js';
-import { setupKickoff, targetGoalY } from './state.js';
+import { advanceOf, ownGoalY, setupKickoff, targetGoalY } from './state.js';
 import { clearOffside } from './offside.js';
 import { aimedAtGoal, assistedAim } from './aim.js';
 
@@ -168,11 +168,24 @@ function updateOwnership(state) {
     }
   }
   if (best) {
+    const struck = len(b.vx, b.vy);
+    const stopped = state.teams[best.team].players[best.idx];
+    // A save, not a pick-up: the keeper, a ball that was travelling, an opponent
+    // who hit it, and close enough to his goal for it to have mattered.
+    if (stopped.role === 'gk' && struck > SAVE_SPEED
+        && b.lastTouch && b.lastTouch.team !== best.team
+        && Math.abs(b.y - ownGoalY(state.teams[best.team])) < PEN_D) {
+      state.events.push({ type: 'save', team: best.team });
+    }
+
     b.owner = best;
     b.lastTouch = { team: best.team, idx: best.idx };
     b.kicker = null;
     const p = state.teams[best.team].players[best.idx];
     p.holdTicks = 0;
+    // Where this run started, and whether it has already been remarked upon.
+    p.runFrom = advanceOf(state.teams[best.team], p.y);
+    p.ran = false;
 
     if (p.offside) {
       whistleOffside(state, best.team, p);
@@ -451,6 +464,22 @@ function movePlayer(state, t, p, mv) {
     }
   }
   integratePlayer(p);
+
+  // Carrying it a good way up the pitch is worth a word - once per run, and only
+  // for ground actually gained towards their goal, or dribbling in circles would
+  // earn you a commentary line.
+  if (owns && !p.ran && p.role !== 'gk') {
+    const here = advanceOf(state.teams[t], p.y);
+    // A run has to start somewhere. Normally that is the moment he takes the
+    // ball; if he has it without that ever happening - a restart, a scenario in
+    // a test - it starts here rather than silently never counting.
+    if (p.runFrom === null || p.runFrom === undefined) p.runFrom = here;
+    const gained = here - p.runFrom;
+    if (gained > RUN_ADVANCE) {
+      p.ran = true;
+      state.events.push({ type: 'run', team: t, idx: p.idx });
+    }
+  }
 }
 
 function integratePlayer(p) {

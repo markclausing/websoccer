@@ -126,6 +126,11 @@ export const SHOT_LIFT_MAX = 240;
 export const SHOT_FLAT_RANGE = 300; // beyond this you are hitting it long, not shooting
 export const KICK_COOLDOWN = 16;
 
+// What the commentator considers worth mentioning. A ball slower than this was
+// passed back, not saved; a run shorter than this is just carrying it forward.
+export const SAVE_SPEED = 380;
+export const RUN_ADVANCE = 0.3; // three tenths of the pitch, with the ball
+
 /** Launch speed for a ball that should come to rest after `dist` pixels. */
 export function speedForDistance(dist) {
   return (dist * (1 - GROUND_FRICTION)) / DT;

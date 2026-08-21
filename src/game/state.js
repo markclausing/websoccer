@@ -126,6 +126,10 @@ function makeTeam(index, human, attackDir, ai, lineup) {
       down: 0,
       cooldown: 0,
       holdTicks: 0,
+      // Where the current run with the ball began, and whether it has already
+      // been remarked upon.
+      runFrom: null,
+      ran: false,
       offside: false, // flagged when the ball was last played forward past him // how long this player has held the ball (for the keeper's clearance)
     })),
   };

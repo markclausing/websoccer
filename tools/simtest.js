@@ -672,3 +672,122 @@ if (where(overridden)[0] !== 'wss://somewhere.else') {
 console.log('');
 console.log(`Relay: local pages talk to themselves, hosted pages to ${config.DEFAULT_RELAY || '(nothing configured)'}`);
 console.log('OK: the page asks the right server, and ?relay= always wins');
+
+// --- What is worth commenting on ---------------------------------------------
+//
+// Two events exist only so the commentator has something to react to: a keeper
+// stopping a struck ball near his own goal, and a player carrying it a third of
+// the way up the pitch. Both are computed in the simulation, so both are checked
+// here rather than in the browser.
+
+function savedScenario() {
+  const state = createMatch({ seed: 4, halfSeconds: 120, humans: [false, false] });
+  while (state.phase !== 'play' && state.tick < 600) step(state, [0, 0]);
+  const shooter = state.teams[0];
+  const keeper = state.teams[1].players[0];
+  const b = state.ball;
+  // A ball struck hard at the keeper from the edge of his area.
+  b.x = keeper.x;
+  b.y = keeper.y - shooter.attackDir * 90;
+  b.z = 0;
+  b.vx = 0;
+  b.vy = shooter.attackDir * 700;
+  b.vz = 0;
+  b.owner = null;
+  b.lastTouch = { team: 0, idx: 9 };
+  // Kickoff protection is still standing until somebody plays the ball, and it
+  // would keep the keeper's hands off this one.
+  b.protectedFor = null;
+  b.protectTicks = 0;
+  for (let i = 0; i < 60; i++) {
+    step(state, [0, 0]);
+    if (state.events.some((e) => e.type === 'save')) return 'saved';
+  }
+  return 'nothing';
+}
+
+function passBackScenario() {
+  const state = createMatch({ seed: 4, halfSeconds: 120, humans: [false, false] });
+  while (state.phase !== 'play' && state.tick < 600) step(state, [0, 0]);
+  const team = state.teams[1];
+  const keeper = team.players[0];
+  const b = state.ball;
+  // His own defender rolling it back to him is not a save.
+  b.x = keeper.x;
+  b.y = keeper.y - team.attackDir * 60;
+  b.z = 0;
+  b.vx = 0;
+  b.vy = team.attackDir * 120;
+  b.vz = 0;
+  b.owner = null;
+  b.lastTouch = { team: 1, idx: 3 };
+  b.protectedFor = null;
+  b.protectTicks = 0;
+  for (let i = 0; i < 60; i++) {
+    step(state, [0, 0]);
+    if (state.events.some((e) => e.type === 'save')) return 'saved';
+  }
+  return 'nothing';
+}
+
+function runScenario(lane = 0, seed = 2) {
+  const state = createMatch({ seed, halfSeconds: 120, humans: [true, false] });
+  while (state.phase !== 'play' && state.tick < 600) step(state, [0, 0]);
+  const team = state.teams[0];
+  const idx = team.controlled;
+  const p = team.players[idx];
+  const spot = posFor(team, lane, 0.42);
+  p.x = spot.x;
+  p.y = spot.y;
+  const b = state.ball;
+  b.x = p.x;
+  b.y = p.y;
+  b.z = 0;
+  b.vx = 0;
+  b.vy = 0;
+  b.vz = 0;
+  b.owner = { team: 0, idx };
+  b.protectedFor = null;
+  b.protectTicks = 0;
+  p.holdTicks = 30;
+  // A moment for the defence to react, as in the other scenarios here.
+  for (let i = 0; i < 15; i++) step(state, [0, 0]);
+  const forward = team.attackDir < 0 ? BTN.UP : BTN.DOWN;
+  let said = 0;
+  for (let i = 0; i < 300; i++) {
+    // Steered towards the middle, or he runs himself out over the touchline.
+    let mask = forward;
+    if (p.x < FIELD.cx - 30) mask |= BTN.RIGHT;
+    else if (p.x > FIELD.cx + 30) mask |= BTN.LEFT;
+    step(state, [mask, 0]);
+    said += state.events.filter((e) => e.type === 'run').length;
+    if (!state.ball.owner || state.ball.owner.team !== 0 || state.phase !== 'play') break;
+  }
+  return said;
+}
+
+console.log('');
+const saved = savedScenario();
+const passBack = passBackScenario();
+console.log(`Commentary: a shot at the keeper -> ${saved}, a pass back to him -> ${passBack}`);
+if (saved !== 'saved') {
+  console.error('FAIL: the keeper stopping a shot was not reported as a save');
+  process.exit(1);
+}
+if (passBack !== 'nothing') {
+  console.error('FAIL: a pass back to the keeper was reported as a save');
+  process.exit(1);
+}
+const ranLanes = [[-0.4, 2], [0, 3], [0.4, 5], [0, 7]].map(([lane, seed]) => runScenario(lane, seed));
+const spoke = ranLanes.filter((n) => n > 0).length;
+console.log(`            a long run -> ${spoke} of ${ranLanes.length} attempts, and never twice in one run `
+  + `(${ranLanes.join(', ')})`);
+if (spoke === 0) {
+  console.error('FAIL: carrying the ball up the pitch was never worth a word');
+  process.exit(1);
+}
+if (ranLanes.some((n) => n > 1)) {
+  console.error('FAIL: one run was announced more than once');
+  process.exit(1);
+}
+console.log('OK: saves and long runs are reported, and nothing else is');

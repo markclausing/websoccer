@@ -60,6 +60,11 @@ How it plays:
 - You control whoever is nearest the ball; the **switch button steps to the next
   man out**, so pressing it repeatedly works outwards.
 
+There is a **commentator**, and he is made of filters rather than recordings:
+formant synthesis, which is roughly what the speech chips of the era did. He
+speaks only for a goal, a save or a long run with the ball, never twice within
+six seconds, and there is a switch in the menu for when you have had enough.
+
 There are goals, throw-ins, corners, goal kicks, half time, a final whistle and
 **offside** (switchable). No fouls: slide tackles are free, deliberately, like
 the originals. Four things follow the real rules rather than arcade convention,
@@ -194,7 +199,8 @@ gives you `ping`, `delay`, `stalls` and `desync`.
   the game up and the scorelines run away, because finishing is too easy once a
   side gets through. Fixing that is worth more than any new feature here.
 - The keeper is simple: he walks to the ball and hoofs it clear, he does not dive.
-- No commentary, no net ripple, and the crowd only reacts to goals.
+- The commentator knows three things to say and says them in one voice; the
+  crowd only reacts to goals; there is no net ripple.
 - Nobody checks that a high score is real.
 - Online: no rematch button, no reconnecting after a drop, and messages go over
   the wire as JSON — around 4 kB/s per player, where binary would be far leaner.
