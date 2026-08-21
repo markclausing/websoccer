@@ -95,7 +95,9 @@ if (onTouchDevice) {
 
 const renderer = new Renderer(canvas);
 
-const highscores = new Highscores();
+// Named explicitly now that a second game shares this domain: without it both
+// games would read and write the same table.
+const highscores = new Highscores(globalThis.localStorage, 'websoccer.highscores.v1');
 const hiscoreBox = document.getElementById('hiscore');
 
 const game = {

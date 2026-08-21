@@ -17,7 +17,7 @@ import * as commentary from '../src/commentary.js';
 import { TouchControls } from '../src/touch.js';
 import { BTN } from '../src/constants.js';
 import { lineupFrom, shapeOf } from '../src/game/formations.js';
-import { KEY as SCORES_KEY } from '../src/highscores.js';
+const SCORES_KEY = 'websoccer.highscores.v1';
 
 const PORT = 5196;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -15,7 +15,15 @@
  * tests can run it without a browser.
  */
 
-export const KEY = 'websoccer.highscores.v1';
+/**
+ * Where the table is kept, unless the game says otherwise.
+ *
+ * It has to be said otherwise when two games share an origin, which these two
+ * do: websoccer and webtennis both live on the same github.io domain, so one
+ * key would have meant tennis results landing in the football table and nobody
+ * noticing until a 6-1 appeared next to a 3-0.
+ */
+export const KEY = 'highscores.v1';
 export const LEVELS = ['easy', 'normal', 'hard'];
 export const TABLE_SIZE = 10;
 export const NAME_LENGTH = 3;
@@ -146,14 +154,15 @@ export function levelOf(difficulty) {
 }
 
 export class Highscores {
-  constructor(store = globalThis.localStorage) {
+  constructor(store = globalThis.localStorage, key = KEY) {
     this.store = store;
+    this.key = key;
     this.tables = this.read();
   }
 
   read() {
     try {
-      const raw = this.store?.getItem(KEY);
+      const raw = this.store?.getItem(this.key);
       if (!raw) return empty();
       return merge(empty(), JSON.parse(raw));
     } catch {
@@ -165,7 +174,7 @@ export class Highscores {
 
   write() {
     try {
-      this.store?.setItem(KEY, JSON.stringify(this.tables));
+      this.store?.setItem(this.key, JSON.stringify(this.tables));
     } catch { /* private mode: the table just will not stick */ }
   }
 
