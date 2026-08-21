@@ -14,6 +14,7 @@ import { OnlineTransport } from '../src/net/transport.js';
 import { AudioEngine, Chiptune, Sfx, TRACK, noteFreq } from '../src/audio.js';
 import { TouchControls } from '../src/touch.js';
 import { BTN } from '../src/constants.js';
+import { lineupFrom, shapeOf } from '../src/game/formations.js';
 
 const PORT = 5196;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -50,6 +51,7 @@ function makeEl(id = '', tag = 'div') {
     selected: false,
     className: '',
     dataset: {},
+    style: {},
     children: [],
     handlers: {},
     classList: {
@@ -70,6 +72,11 @@ function makeEl(id = '', tag = 'div') {
     },
     getContext: () => ctx,
     focus: () => {},
+    // The line-up editor drags players around on a canvas.
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: el.width, height: el.height }),
+    setPointerCapture: () => {},
+    releasePointerCapture: () => {},
+    hasPointerCapture: () => false,
     querySelectorAll: () => [],
   };
   // Assigning innerHTML = '' is how the real code clears a table body.
@@ -226,6 +233,13 @@ async function main() {
       }
     }, 'server did not start');
 
+    // A line-up saved from an earlier session, so the menu has to read it back
+    // and the match has to be played with it.
+    store.set('websoccer.lineup.0', JSON.stringify({
+      key: '442diamond',
+      spots: lineupFrom('442diamond').map(({ x, y }) => ({ x, y })),
+    }));
+
     await import('../src/main.js');
     const game = global.window.__game;
     if (!game) throw new Error('main.js did not expose the __game hook');
@@ -236,6 +250,12 @@ async function main() {
     for (let i = 0; i < 200; i++) pumpFrame();
     if (game.state.tick < 100) throw new Error(`the local simulation is not running (tick ${game.state.tick})`);
     console.log(`OK: local match is running (tick ${game.state.tick}, ${canvasCalls} canvas commands)`);
+
+    const localShape = shapeOf(game.state.teams[0].formation);
+    if (localShape !== shapeOf(lineupFrom('442diamond'))) {
+      throw new Error(`the saved line-up was ignored: team 0 is playing ${localShape}`);
+    }
+    console.log(`OK: the line-up saved last time is the one that takes the field (${localShape})`);
 
     click(el('quit'));
     if (game.state) throw new Error('returning to the menu does not work');
@@ -390,6 +410,19 @@ async function main() {
     } else {
       console.log('OK: both players compute the same match');
     }
+    const hostShapes = game.state.teams.map((t) => shapeOf(t.formation));
+    const guestShapes = opponent.state.teams.map((t) => shapeOf(t.formation));
+    const want = [shapeOf(lineupFrom('442diamond')), shapeOf(lineupFrom(GUEST_LINEUP))];
+    if (hostShapes.join(' ') !== want.join(' ')) {
+      console.error(`FAIL: the host is playing ${hostShapes.join(' vs ')}, expected ${want.join(' vs ')}`);
+      failed = true;
+    } else if (guestShapes.join(' ') !== want.join(' ')) {
+      console.error(`FAIL: the guest is playing ${guestShapes.join(' vs ')}, expected ${want.join(' vs ')}`);
+      failed = true;
+    } else {
+      console.log(`OK: both machines lined up ${want.join(' vs ')} - each side's own choice, agreed over the wire`);
+    }
+
     if (el('netend').classList.contains('hidden') === false) {
       console.error('FAIL: the error overlay (connection lost / desync) is on screen');
       failed = true;
@@ -413,11 +446,18 @@ async function main() {
   process.exitCode = failed ? 1 : 0;
 }
 
+const GUEST_LINEUP = '532';
+
 async function joinAs(code) {
   const signal = new Signal(`ws://localhost:${PORT}`);
   const peer = { state: null, transport: null, devices: { mask: () => 0 } };
+  signal.on('room', () => {
+    signal.send({ t: 'lineup', spots: lineupFrom(GUEST_LINEUP).map(({ x, y }) => ({ x, y })) });
+  });
   signal.on('start', (m) => {
-    peer.state = createMatch({ seed: m.seed, halfSeconds: m.halfSeconds, humans: [true, true] });
+    peer.state = createMatch({
+      seed: m.seed, halfSeconds: m.halfSeconds, humans: [true, true], formations: m.formations,
+    });
     peer.transport = new OnlineTransport({ signal, devices: peer.devices, localTeam: 1 });
   });
   signal.join(code);

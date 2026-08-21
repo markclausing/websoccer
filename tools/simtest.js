@@ -10,6 +10,7 @@ import { kickBall } from '../src/game/kick.js';
 import { assistedAim } from '../src/game/aim.js';
 import { BTN, FIELD, GOAL_W, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
 import { norm } from '../src/util.js';
+import { PRESETS, lineupFrom, roleFor, shapeOf } from '../src/game/formations.js';
 
 function runMatch(seed, ticks) {
   const state = createMatch({ seed, halfSeconds: 60, humans: [false, false] });
@@ -470,3 +471,55 @@ if (full < threeQuarters * 0.7) {
   process.exit(1);
 }
 console.log('OK: hitting it as hard as you can is not a mistake');
+
+// --- Line-ups ----------------------------------------------------------------
+//
+// Every preset has to produce a legal eleven and a match that finishes. What it
+// does not have to do is play like the default: the shapes differ on purpose,
+// and by a lot. See the note in game/formations.js about what was measured.
+
+console.log('');
+for (const preset of PRESETS) {
+  const spots = lineupFrom(preset.key);
+  if (spots.length !== 11) {
+    console.error(`FAIL: ${preset.label} has ${spots.length} players`);
+    process.exit(1);
+  }
+  if (spots[0].role !== 'gk' || spots.filter((s) => s.role === 'gk').length !== 1) {
+    console.error(`FAIL: ${preset.label} does not have exactly one keeper, first on the list`);
+    process.exit(1);
+  }
+  for (const spot of spots) {
+    if (!(spot.x >= -1 && spot.x <= 1) || !(spot.y >= 0 && spot.y <= 1)) {
+      console.error(`FAIL: ${preset.label} puts somebody off the pitch (${spot.x}, ${spot.y})`);
+      process.exit(1);
+    }
+  }
+  const state = createMatch({
+    seed: 7, halfSeconds: 60, humans: [false, false], formations: [preset.key, '433'],
+  });
+  while (state.phase !== 'fulltime' && state.tick < TICK_RATE * 600) step(state, [0, 0]);
+  if (state.phase !== 'fulltime') {
+    console.error(`FAIL: a match against ${preset.label} never finished`);
+    process.exit(1);
+  }
+  console.log(`  ${preset.label.padEnd(15)} ${shapeOf(spots).padEnd(8)} ${state.score.join('-')} against the 4-3-3`);
+}
+console.log('OK: every preset fields a legal eleven and plays a match out');
+
+// A line-up from the editor, from storage or from the other machine may be
+// anything at all. It has to come back usable rather than throw.
+const junk = lineupFrom([{ x: 99, y: -4 }, null, { x: 'nonsense' }]);
+if (junk.length !== 11 || junk.some((s) => !Number.isFinite(s.x) || !Number.isFinite(s.y))) {
+  console.error('FAIL: a corrupt line-up did not come back usable');
+  process.exit(1);
+}
+if (junk[0].y > 0.1) {
+  console.error(`FAIL: the keeper was allowed up the pitch (y ${junk[0].y})`);
+  process.exit(1);
+}
+if (roleFor(0.9, 5) !== 'fw' || roleFor(0.62, 5) !== 'am' || roleFor(0.2, 5) !== 'df') {
+  console.error('FAIL: roles are not being read off the position');
+  process.exit(1);
+}
+console.log('OK: a corrupt line-up is repaired, and roles follow where a player stands');

@@ -1,10 +1,11 @@
 import {
-  AI_LEVELS, DT, FIELD, FIELD_H, FORMATION, GOAL_W, PEN_D, PEN_W,
+  AI_LEVELS, DT, FIELD, FIELD_H, GOAL_W, PEN_D, PEN_W,
 } from '../constants.js';
 import { clamp, dist, dist2, norm, randRange } from '../util.js';
 import { speedForDistance } from '../constants.js';
 import { advanceOf, ownGoalY, posFor, targetGoalY } from './state.js';
 import { holdTheLine } from './offside.js';
+import { RETREAT } from './formations.js';
 
 // The AI runs INSIDE the simulation and only reads state + state.rng. That keeps
 // everything deterministic, which is what makes the lockstep netcode work.
@@ -65,7 +66,7 @@ export function chaserIndex(state, teamIdx) {
 /** Formation position, shifted along with the ball. */
 function homeSpot(state, teamIdx, i) {
   const team = state.teams[teamIdx];
-  const f = FORMATION[i];
+  const f = team.formation[i];
   const b = state.ball;
   const adv = advanceOf(team, b.y);
   // The line moves with the ball, but retreats less eagerly than it advances,
@@ -80,7 +81,7 @@ function homeSpot(state, teamIdx, i) {
   // drop all the way, midfielders less, forwards barely: a whole team retreating
   // into its own box left an attacker no room to pass into and nothing to run
   // at. Coming forward is unaffected - everyone joins in with that.
-  const retreat = { df: 1, mf: 0.55, fw: 0.25 }[f.role] ?? 1;
+  const retreat = RETREAT[f.role] ?? 1;
   const shift = (adv - 0.5) * (adv < 0.5 ? 0.32 * retreat : 0.55);
   let yFrac = clamp(f.y + shift, 0.15, 0.95);
   // Stay onside while we have the ball, otherwise the forwards camp behind the

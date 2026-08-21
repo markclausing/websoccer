@@ -184,6 +184,35 @@ someone scores. The simulation reports what happened as a list of events each
 tick and the sound reacts to those, so it never learns anything about audio. Browsers refuse to make a sound before the visitor has interacted
 with the page, so it starts on your first click or key press.
 
+## Line-ups
+
+Under **Line-up** in the menu there is a small pitch with your eleven on it. Pick
+one of five shapes — 4-3-3, 4-4-2 diamond, 4-4-2 flat, 3-5-2, 5-3-2 — or drag the
+players wherever you want them. Your own goal is at the bottom, so dragging a man
+upwards pushes him forward. Both sides can be set: in a one player match the red
+buttons are the CPU's shape.
+
+Nobody is labelled a defender or a striker. **Where you put a player is what he
+becomes**, read off how far up the pitch he stands: the back band tracks all the
+way back, a holding midfielder most of the way, a hanging ten barely at all, a
+forward not really. So the diamond's number ten stays high because he is high,
+and if you drag him back ten pixels he starts helping out. Your line-up is
+remembered between sessions, and in an online match each side plays its own —
+the guest declares his on joining and the host puts both in the kickoff message,
+so the two machines build identical teams.
+
+A word of warning, since it is measurable. The match was balanced around the
+4-3-3, and it turns out to be balanced partly by being *stuck*: with both sides
+playing it the ball spends 93% of the match in the middle third. Every other
+shape unsticks the game — two central strikers give a long ball somewhere to go —
+and CPU against CPU the scorelines run away: a flat 4-4-2 measured 22 goals a
+match, 3-5-2 nearly 27. That is finishing being too easy once a side gets
+through, which the 4-3-3 hid by rarely getting through, and it is the next thing
+worth fixing. Against a defending human the shapes behave themselves and rank the
+way you would expect, tightest first: 4-3-3, 5-3-2, 3-5-2, the diamond, and a
+flat 4-4-2 leaking twice as much as the rest.
+
+
 ## CPU difficulty
 
 Playing against the CPU you can pick **Easy**, **Normal** or **Hard**. Hard is the

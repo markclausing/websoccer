@@ -383,6 +383,41 @@ details .keys { margin-top: 0; }
   }
 }
 
+/* --- Line-up editor ------------------------------------------------------ */
+
+.shape {
+  color: #7ea888;
+  font-weight: normal;
+  margin-left: 6px;
+}
+
+details[open] .shape { color: #b9d6c0; }
+
+#lineupPresets { margin: 10px 0; }
+
+#lineupPresets button.active { border-color: #ffe14d; }
+
+.pitchWrap {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 10px;
+}
+
+#lineupPitch {
+  border-radius: 4px;
+  cursor: grab;
+  /* Dragging a player must not scroll the menu underneath it. */
+  touch-action: none;
+  max-width: 100%;
+}
+
+#lineupPitch:active { cursor: grabbing; }
+
+#lineupNote {
+  min-height: 2.4em;
+  margin: 0;
+}
+
 /* Generic and deliberately last: .overlay and .row set their own display with
    the same specificity, so this only wins by coming after them. Without it
    nothing with class="hidden" was ever actually hidden - the online panel sat

@@ -3,6 +3,10 @@ import {
   ACTIONS, ACTION_LABELS, InputDevices, PRESETS, findConflicts, keyLabel, loadBindings, saveBindings,
 } from './input.js';
 import { createMatch } from './game/state.js';
+import {
+  DEFAULT_KEY, PRESETS as LINEUP_PRESETS, lineupFrom, presetFor, shapeOf,
+} from './game/formations.js';
+import { LineupEditor } from './lineupEditor.js';
 import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
 import { drawTitleScreen } from './render/titlescreen.js';
@@ -120,6 +124,7 @@ function startLocal({ players, halfSeconds }) {
     humans: [true, players === 2],
     difficulty,
     offside,
+    formations: [lineups[0].spots, lineups[1].spots],
   });
   beginMatch(state, new LocalTransport(devices, players === 2 ? [0, 1] : [0]));
 }
@@ -128,7 +133,9 @@ function startOnline(opts) {
   const { seed, halfSeconds, localTeam, signal } = opts;
   // Both teams are "human": no CPU, and exactly the same simulation on both
   // sides. Only the seed and the team assignment come from the host.
-  const state = createMatch({ seed, halfSeconds, humans: [true, true], offside: opts.offside });
+  const state = createMatch({
+    seed, halfSeconds, humans: [true, true], offside: opts.offside, formations: opts.formations,
+  });
   const transport = new OnlineTransport({ signal, devices, localTeam });
   beginMatch(state, transport);
 }
@@ -357,6 +364,82 @@ let mode = '1';
 let difficulty = 'normal';
 let offside = true;
 
+// --- Line-ups ---------------------------------------------------------------
+//
+// One per team, each either a preset or a set of spots you dragged yourself.
+// Kept as spots rather than a key, so a custom line-up survives a reload and can
+// be handed to the other machine in an online match without either side needing
+// to agree on what "4-4-2 diamond" means.
+
+const KITS = ['#2f6fd0', '#d33b3b'];
+const lineups = [readLineup(0), readLineup(1)];
+let editing = 0;
+
+function readLineup(slot) {
+  try {
+    const raw = globalThis.localStorage?.getItem(`websoccer.lineup.${slot}`);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved && Array.isArray(saved.spots)) {
+        return { key: saved.key || 'custom', spots: lineupFrom(saved.spots) };
+      }
+    }
+  } catch { /* nothing saved, or private mode */ }
+  return { key: DEFAULT_KEY, spots: lineupFrom(DEFAULT_KEY) };
+}
+
+function saveLineup(slot) {
+  try {
+    globalThis.localStorage?.setItem(`websoccer.lineup.${slot}`, JSON.stringify({
+      key: lineups[slot].key,
+      spots: lineups[slot].spots.map(({ x, y }) => ({ x, y })),
+    }));
+  } catch { /* the setting just will not stick */ }
+}
+
+const lineupPresets = document.getElementById('lineupPresets');
+const lineupNote = document.getElementById('lineupNote');
+const lineupShape = document.getElementById('lineupShape');
+const editor = new LineupEditor(document.getElementById('lineupPitch'), (spots) => {
+  lineups[editing] = { key: 'custom', spots: lineupFrom(spots) };
+  saveLineup(editing);
+  renderLineup();
+});
+
+for (const preset of LINEUP_PRESETS) {
+  const btn = document.createElement('button');
+  btn.textContent = preset.label;
+  btn.dataset.lineup = preset.key;
+  btn.addEventListener('click', () => {
+    lineups[editing] = { key: preset.key, spots: lineupFrom(preset.key) };
+    saveLineup(editing);
+    renderLineup();
+  });
+  lineupPresets.appendChild(btn);
+}
+
+document.querySelectorAll('[data-lineupteam]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    editing = Number(btn.dataset.lineupteam);
+    document.querySelectorAll('[data-lineupteam]').forEach((b) => b.classList.toggle('active', b === btn));
+    renderLineup();
+  });
+});
+
+function renderLineup() {
+  const current = lineups[editing];
+  editor.set(current.spots, KITS[editing]);
+  lineupShape.textContent = shapeOf(current.spots);
+  lineupNote.textContent = current.key === 'custom'
+    ? 'Your own line-up. Pick a preset above to start again.'
+    : presetFor(current.key).note;
+  lineupPresets.querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.lineup === current.key);
+  });
+}
+
+renderLineup();
+
 document.querySelectorAll('[data-music]').forEach((btn) => {
   btn.classList.toggle('active', (btn.dataset.music === 'on') === soundOn);
   btn.addEventListener('click', () => {
@@ -398,6 +481,14 @@ document.querySelectorAll('[data-mode]').forEach((btn) => {
     renderBindings();
     // Only worth choosing when there is a CPU to play against.
     difficultyRow.classList.toggle('hidden', mode !== '1');
+    // Online you only ever pick your own side, so the team switch goes away and
+    // slot 0 is always "yours".
+    document.getElementById('lineupTeamRow').classList.toggle('hidden', mode === 'online');
+    if (mode === 'online' && editing !== 0) {
+      editing = 0;
+      document.querySelectorAll('[data-lineupteam]').forEach((b) => b.classList.toggle('active', b.dataset.lineupteam === '0'));
+      renderLineup();
+    }
 
     // Switching mode releases any room we had opened.
     if (game.signal && !game.state) {
@@ -478,11 +569,36 @@ document.getElementById('host').addEventListener('click', () => {
     setOnlineStatus('Share this code and wait for your opponent...');
   });
 
-  signal.on('peer', () => {
+  // The guest sends his line-up the moment he joins. We wait a moment for it,
+  // then kick off regardless: a missing line-up should cost him his shape, not
+  // the match. Whatever we end up with goes out in the start message, so both
+  // machines build exactly the same two teams.
+  let guestLineup = null;
+  let peerArrived = false;
+  let kickedOff = false;
+  const beginHosted = () => {
+    if (kickedOff) return;
+    kickedOff = true;
     const seed = (Date.now() & 0x7fffffff) || 1;
+    const formations = [lineups[0].spots, guestLineup || lineupFrom(DEFAULT_KEY)];
     // Goes over the wire so both sides start from identical settings.
-    signal.send({ t: 'start', seed, halfSeconds: secs, offside });
-    startOnline({ seed, halfSeconds: secs, localTeam: 0, signal, offside });
+    signal.send({
+      t: 'start', seed, halfSeconds: secs, offside, formations,
+    });
+    startOnline({
+      seed, halfSeconds: secs, localTeam: 0, signal, offside, formations,
+    });
+  };
+
+  signal.on('lineup', (m) => {
+    guestLineup = lineupFrom(m.spots);
+    if (peerArrived) beginHosted();
+  });
+
+  signal.on('peer', () => {
+    peerArrived = true;
+    if (guestLineup) beginHosted();
+    else setTimeout(beginHosted, 700);
   });
 
   document.getElementById('host').disabled = true;
@@ -499,10 +615,21 @@ document.getElementById('join').addEventListener('click', () => {
   }
   const signal = connect();
 
-  signal.on('room', () => setOnlineStatus('Connected. Waiting for kickoff...'));
+  signal.on('room', () => {
+    setOnlineStatus('Connected. Waiting for kickoff...');
+    // Ours to declare, before the host decides what the match looks like.
+    signal.send({ t: 'lineup', spots: lineups[0].spots.map(({ x, y }) => ({ x, y })) });
+  });
   signal.on('start', (m) => {
     startOnline({
-      seed: m.seed, halfSeconds: m.halfSeconds, localTeam: 1, signal, offside: m.offside !== false,
+      seed: m.seed,
+      halfSeconds: m.halfSeconds,
+      localTeam: 1,
+      signal,
+      offside: m.offside !== false,
+      // The host's copy is the one that counts, even of our own line-up: two
+      // machines disagreeing about where eleven players stand is a desync.
+      formations: m.formations,
     });
   });
 

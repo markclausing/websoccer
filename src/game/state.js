@@ -1,7 +1,8 @@
 import {
-  AI_LEVELS, CENTER_R, FIELD, FIELD_H, FIELD_W, FORMATION, TEAM_PRESETS,
+  AI_LEVELS, CENTER_R, FIELD, FIELD_H, FIELD_W, TEAM_PRESETS,
   KICKOFF_TICKS, PROTECT_TICKS, TICK_RATE,
 } from '../constants.js';
+import { lineupFrom } from './formations.js';
 import { clamp } from '../util.js';
 
 // The entire match state lives in one plain object: no DOM, no closures, no
@@ -14,6 +15,9 @@ export function createMatch(options = {}) {
     humans: [true, false], // [is team 0 human?, is team 1 human?]
     difficulty: 'hard', // only affects CPU teams; a string, or one key per team
     offside: true, // the offside rule, whistle and all
+    // One line-up per team: a preset key, eleven spots from the editor, or null
+    // for the default. Both machines in an online match are handed the same two.
+    formations: [null, null],
     ...options,
   };
 
@@ -40,8 +44,8 @@ export function createMatch(options = {}) {
     lastGoalTeam: -1,
     ball: newBall(),
     teams: [
-      makeTeam(0, opts.humans[0], -1, levelFor(opts.difficulty, 0)),
-      makeTeam(1, opts.humans[1], +1, levelFor(opts.difficulty, 1)),
+      makeTeam(0, opts.humans[0], -1, levelFor(opts.difficulty, 0), opts.formations[0]),
+      makeTeam(1, opts.humans[1], +1, levelFor(opts.difficulty, 1), opts.formations[1]),
     ],
   };
 
@@ -82,20 +86,32 @@ function levelFor(difficulty, teamIdx) {
   return { ...AI_LEVELS.hard, ...(level || AI_LEVELS.hard) };
 }
 
-function makeTeam(index, human, attackDir, ai) {
+/** Who starts on the ball: whoever is furthest forward. */
+function mostAdvanced(formation) {
+  let best = 1;
+  for (let i = 1; i < formation.length; i++) {
+    if (formation[i].y > formation[best].y) best = i;
+  }
+  return best;
+}
+
+function makeTeam(index, human, attackDir, ai, lineup) {
   const preset = TEAM_PRESETS[index];
+  const formation = lineupFrom(lineup);
   return {
     index,
     ai,
     name: preset.name,
     human: !!human,
+    // This team's line-up. The other side may be playing something else.
+    formation,
     attackDir, // -1 = attacks towards the top (y decreasing), +1 = towards the bottom
-    controlled: 9,
+    controlled: mostAdvanced(formation),
     prevMask: 0,
     // Ticks left in which the automatic switch keeps its hands off, because you
     // asked for a particular player yourself.
     manualHold: 0,
-    players: FORMATION.map((f, i) => ({
+    players: formation.map((f, i) => ({
       idx: i,
       role: f.role,
       x: FIELD.cx,
@@ -163,7 +179,7 @@ export function setupKickoff(state, kickoffTeam) {
 
   for (const team of state.teams) {
     for (let i = 0; i < team.players.length; i++) {
-      const f = FORMATION[i];
+      const f = team.formation[i];
       // At kickoff everyone stands in their own half: y is squeezed into [0, 0.47].
       const yFrac = i === 0 ? f.y : Math.min(f.y * 0.62, 0.46);
       const p = posFor(team, f.x, yFrac);

@@ -95,6 +95,27 @@
         <p id="bindHint" class="status">Click a key to change it.</p>
         </details>
 
+        <details id="lineupBox">
+          <summary>Line-up <span id="lineupShape" class="shape">4-3-3</span></summary>
+          <div class="row" id="lineupTeamRow">
+            <label>Team</label>
+            <div class="btns">
+              <button data-lineupteam="0" class="active">Blue</button>
+              <button data-lineupteam="1">Red</button>
+            </div>
+          </div>
+          <div class="btns wrap" id="lineupPresets"></div>
+          <div class="pitchWrap">
+            <canvas id="lineupPitch" width="220" height="300"></canvas>
+          </div>
+          <p id="lineupNote" class="status"></p>
+          <p class="fineprint">
+            Drag anyone but the keeper. How far up the pitch you put a player is
+            what decides how he plays: push a midfielder forward and he stops
+            tracking back and starts hanging off the strikers.
+          </p>
+        </details>
+
         <p id="iosHint" class="fineprint hidden"></p>
 
         <div id="localSetup">

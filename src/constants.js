@@ -238,17 +238,4 @@ export const KEEPER_KIT = [
   { shirt: '#3ad07a', shorts: '#3a3a3a', trim: '#222222', skin: '#8d5524', hair: '#221109' },
 ];
 
-// 4-3-3. x in [-1,1] (width), y in [0,1] (0 = own goal line, 1 = their goal line)
-export const FORMATION = [
-  { x: 0.00, y: 0.025, role: 'gk' },
-  { x: -0.62, y: 0.19, role: 'df' },
-  { x: -0.22, y: 0.13, role: 'df' },
-  { x: 0.22, y: 0.13, role: 'df' },
-  { x: 0.62, y: 0.19, role: 'df' },
-  { x: -0.45, y: 0.42, role: 'mf' },
-  { x: 0.00, y: 0.37, role: 'mf' },
-  { x: 0.45, y: 0.42, role: 'mf' },
-  { x: -0.56, y: 0.68, role: 'fw' },
-  { x: 0.00, y: 0.76, role: 'fw' },
-  { x: 0.56, y: 0.68, role: 'fw' },
-];
+// Line-ups live in game/formations.js: they are a choice now, not a constant.
