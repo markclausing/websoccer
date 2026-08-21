@@ -32,6 +32,7 @@ matches find each other, and every browser sees the same high score table.
   passed straight through to the other player. Identical to `server/relay.js`,
   which is what `npm start` runs locally.
 - `GET /highscores` — the board.
+- `POST /highscores/reset` — empties the board, if you have set a key (below).
 - `POST /highscores` — send yours, get everyone's back merged. The merge is the
   same function the browser runs (`src/highscores.js`), so the two cannot
   disagree about what a board is, and results that are not real results - a
@@ -42,6 +43,25 @@ two players' sockets together, and one object for the whole game is plenty here.
 The migration in `wrangler.toml` uses `new_sqlite_classes`, which is the storage
 class Durable Objects offer on the free plan; check Cloudflare's current limits
 if you expect a crowd.
+
+## Sweeping the board
+
+A public list with no accounts on it will eventually collect something you would
+rather not have on it. Set a key once:
+
+```sh
+npx wrangler secret put ADMIN_KEY     # type any long password
+```
+
+and you can empty it whenever you like:
+
+```sh
+curl -X POST -H "x-admin-key: your-password" \
+  https://websoccer.your-name.workers.dev/highscores/reset
+```
+
+With no `ADMIN_KEY` set the door is not there at all, which is the safe default
+if you deploy this and never read this file.
 
 ## What it does not do
 

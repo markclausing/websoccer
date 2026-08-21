@@ -85,7 +85,7 @@ function check(ok, message) {
 }
 
 const state = fakeState();
-const arena = new Arena(state);
+const arena = new Arena(state, { ADMIN_KEY: 'letmein' });
 
 // Two players, each with their own socket, exactly as the Worker would make them.
 const host = { socket: new FakeSocket('host'), room: null, role: null };
@@ -162,6 +162,28 @@ const huge = {
   text: async () => 'x'.repeat(70 * 1024),
 };
 check((await arena.scores(huge)).status === 413, 'an oversized body is turned away');
+
+// --- Sweeping the board ------------------------------------------------------
+
+const noKey = await arena.reset({ method: 'POST', url: 'x', headers: { get: () => null } });
+check(noKey.status === 403, 'resetting without the key is refused');
+const wrongKey = await arena.reset({
+  method: 'POST', url: 'x', headers: { get: (h) => (h === 'x-admin-key' ? 'guess' : null) },
+});
+check(wrongKey.status === 403, 'resetting with the wrong key is refused');
+const cleared = await arena.reset({
+  method: 'POST', url: 'x', headers: { get: (h) => (h === 'x-admin-key' ? 'letmein' : null) },
+});
+const clearedBody = await cleared.json();
+check(cleared.status === 200 && clearedBody.board.normal.length === 0,
+  'the right key empties the board');
+check((await (await arena.scores(request('GET', '/highscores'))).json()).board.normal.length === 0,
+  'and it stays empty when read back');
+
+// A Worker with no key set has no reset door at all.
+const locked = new Arena(fakeState());
+check((await locked.reset({ method: 'POST', url: 'x', headers: { get: () => 'anything' } })).status === 404,
+  'with no key configured the reset does not exist');
 
 const upgrade = await arena.fetch({
   method: 'GET',

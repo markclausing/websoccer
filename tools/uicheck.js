@@ -180,7 +180,17 @@ Object.defineProperty(global, 'navigator', {
 Object.defineProperty(global, 'location', {
   // hostname as well as host: a real page has both, and config.js uses it to
   // decide whether this page is being served locally.
-  value: { protocol: 'http:', host: `localhost:${PORT}`, hostname: 'localhost', search: '' },
+  //
+  // The relay is pinned in the query string as well, and that is not belt and
+  // braces: with DEFAULT_RELAY filled in and a stub location missing one field,
+  // this suite posted its test scores to the live board three times before
+  // anyone noticed. A test must not be able to reach the internet by accident.
+  value: {
+    protocol: 'http:',
+    host: `localhost:${PORT}`,
+    hostname: 'localhost',
+    search: `?relay=ws://localhost:${PORT}`,
+  },
   configurable: true,
 });
 

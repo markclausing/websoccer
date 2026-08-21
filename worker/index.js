@@ -21,7 +21,7 @@ const MAX_BODY = 64 * 1024;
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
-  'access-control-allow-headers': 'content-type',
+  'access-control-allow-headers': 'content-type, x-admin-key',
 };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -30,8 +30,11 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 });
 
 export class Arena {
-  constructor(state) {
+  constructor(state, env = {}) {
     this.state = state;
+    // Cloudflare hands the object its bindings here, not to fetch(), which is
+    // the only place the admin key can come from.
+    this.env = env;
     /** @type {Map<string, {host: object|null, guest: object|null}>} */
     this.rooms = new Map();
     this.board = null;
@@ -39,6 +42,7 @@ export class Arena {
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname === '/highscores/reset') return this.reset(request);
     if (url.pathname === '/highscores') return this.scores(request);
     if (request.headers.get('Upgrade') === 'websocket') return this.open();
     return new Response('WebSoccer relay. Point the game at this address.', {
@@ -147,6 +151,32 @@ export class Arena {
         break;
       }
     }
+  }
+
+  /**
+   * Wipes the board.
+   *
+   * A public list with no accounts on it will eventually collect something you
+   * do not want on it - a joke name, a made up result, or a test suite that got
+   * pointed at the wrong server. This is the broom. It only works if you have
+   * set a key:
+   *
+   *   npx wrangler secret put ADMIN_KEY
+   *   curl -X POST -H "x-admin-key: ..." https://your-worker/highscores/reset
+   *
+   * With no key set the door is simply not there, which is the safe default for
+   * anyone who deploys this and never reads about it.
+   */
+  async reset(request) {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (request.method !== 'POST') return json({ error: 'POST to reset' }, 405);
+    const key = this.env?.ADMIN_KEY;
+    if (!key) return json({ error: 'no ADMIN_KEY set on this Worker' }, 404);
+    if (request.headers.get('x-admin-key') !== key) return json({ error: 'wrong key' }, 403);
+
+    this.board = merge({}, {});
+    await this.state.storage.put('board', this.board);
+    return json({ board: this.board, cleared: true });
   }
 
   // --- The shared board ------------------------------------------------------
