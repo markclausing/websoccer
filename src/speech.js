@@ -57,13 +57,15 @@ const PHONEMES = {
   V: { f: [300, 1100, 2400], noise: 2400, q: 2, dur: 0.09, level: 0.6 },
   DH: { f: [300, 1400, 2500], noise: 3800, q: 2, dur: 0.07, level: 0.5 },
   Z: { f: [280, 1600, 2500], noise: 4600, q: 5, dur: 0.10, level: 0.6 },
-  // Plosives
-  T: { stop: 0.045, burst: 3600, q: 2, dur: 0.03 },
-  K: { stop: 0.05, burst: 2200, q: 2, dur: 0.035 },
-  P: { stop: 0.045, burst: 1200, q: 1.5, dur: 0.03 },
-  D: { stop: 0.035, burst: 2800, q: 2, dur: 0.025, voiced: true },
-  G: { stop: 0.04, burst: 1700, q: 2, dur: 0.03, voiced: true },
-  B: { stop: 0.035, burst: 900, q: 1.5, dur: 0.025, voiced: true },
+  // Plosives. `locus` is where the formants sit at the moment the mouth opens:
+  // the vowel then slides away from there, and that slide is most of what tells
+  // a "b" from a "d". Without it every stop sounds like the same click.
+  T: { stop: 0.045, burst: 3600, q: 2, dur: 0.03, locus: [400, 1700, 2600] },
+  K: { stop: 0.05, burst: 2200, q: 2, dur: 0.035, locus: [300, 2100, 2600] },
+  P: { stop: 0.045, burst: 1200, q: 1.5, dur: 0.03, locus: [300, 800, 2200] },
+  D: { stop: 0.035, burst: 2800, q: 2, dur: 0.025, voiced: true, locus: [350, 1700, 2600] },
+  G: { stop: 0.04, burst: 1700, q: 2, dur: 0.03, voiced: true, locus: [300, 2000, 2600] },
+  B: { stop: 0.035, burst: 900, q: 1.5, dur: 0.025, voiced: true, locus: [300, 800, 2200] },
   // A gap between words.
   _: { silence: true, dur: 0.07 },
 };
@@ -155,14 +157,38 @@ export const LINES = {
   fulltime: ['thats full time', 'full time'],
 };
 
-/** Roughly a man's voice, and flat: this is a chip, not a person. */
-const PITCH = 96;
-const FORMANT_Q = 9;
+/**
+ * The voice.
+ *
+ * A flat pitch is the thing that says "robot" loudest, so this one moves: it
+ * starts a little above the baseline, drifts down across the phrase the way an
+ * unhurried sentence does, lifts on the first vowel of each word, and falls away
+ * at the end. On top of that there is a small wobble, because a pitch that is
+ * exactly steady between two accents is a pitch no throat ever produced.
+ */
+const PITCH = 118;
+const RISE = 1.06; // on the first vowel of a word
+const DECLINE = 0.82; // where the phrase ends up by the end
+const WOBBLE = 0.02;
+
+/**
+ * Formant bandwidths in hertz rather than a fixed Q. A filter's Q is its centre
+ * frequency divided by its bandwidth, so one Q for all three makes the upper
+ * formants far too broad - which smears the vowel and is a good part of why this
+ * sounded like a machine. Real formants are narrow at the bottom and wider up
+ * top, roughly this.
+ */
+const BANDWIDTH = [60, 90, 150, 220];
+
+/** A fourth resonance, fixed. Voices have one; it is what stops it sounding thin. */
+const FORMANT_4 = 3300;
 
 export class Speech {
   constructor(engine) {
     this.engine = engine;
-    this.level = 0.5;
+    // Narrow formants pass less energy than wide ones, so this is louder than
+    // it looks: measured, a line peaks at about a quarter of full scale.
+    this.level = 0.8;
     this.pick = 0;
   }
 
@@ -189,106 +215,166 @@ export class Speech {
     return sounds.length ? this.speak(sounds, at) : 0;
   }
 
-  /** Schedules one phoneme sequence. */
+  /**
+   * Schedules one phoneme sequence.
+   *
+   * Everything is automated on a handful of long-lived nodes rather than built
+   * per sound: a node per phoneme clicks at every join, and the joins are where
+   * speech lives. The voice is a sawtooth softened by a lowpass - a raw one
+   * buzzes - with a breath of noise mixed in, because a completely noiseless
+   * voice is the other half of sounding synthetic.
+   */
   speak(phonemes, at = 0) {
     const { ctx, master } = this.engine;
     if (!ctx) return 0;
     const start = Math.max(ctx.currentTime, at || ctx.currentTime) + 0.02;
-    const total = phonemes.reduce((sum, p) => sum + (PHONEMES[p]?.dur || 0.1), 0) + 0.2;
+    const sounds = phonemes.map((name) => PHONEMES[name]).filter(Boolean);
+    const total = sounds.reduce((sum, ph) => sum + ph.dur, 0);
 
-    // One voice and one hiss for the whole phrase, with everything about them
-    // automated over time. Building a node per sound would click at every join.
+    // --- The voice ----------------------------------------------------------
     const voice = ctx.createOscillator();
     voice.type = 'sawtooth';
-    voice.frequency.setValueAtTime(PITCH, start);
-    // A flat delivery with the pitch falling away at the end, which is the least
-    // a sentence needs to sound like a sentence.
-    voice.frequency.linearRampToValueAtTime(PITCH * 0.88, start + total);
+    voice.frequency.setValueAtTime(PITCH * RISE, start);
+
+    // A gentle lowpass on the source, which is roughly what a throat does to a
+    // glottal pulse: without it the sawtooth's top end is a buzz.
+    const soften = ctx.createBiquadFilter();
+    soften.type = 'lowpass';
+    soften.frequency.value = 2600;
+    soften.Q.value = 0.7;
+
+    // Breath: a little noise riding along with the voice.
+    const breath = ctx.createBufferSource();
+    breath.buffer = this.engine.longNoise;
+    breath.loop = true;
+    const breathLevel = ctx.createGain();
+    breathLevel.gain.value = 0.06;
 
     const voiceGain = ctx.createGain();
     voiceGain.gain.setValueAtTime(0, start);
+    voice.connect(soften).connect(voiceGain);
+    breath.connect(breathLevel).connect(voiceGain);
 
-    const bands = [0, 1, 2].map((i) => {
+    // Four resonances. Where the first three sit is the vowel; the fourth is
+    // fixed and only there to stop the voice sounding thin.
+    const bands = [0, 1, 2, 3].map((i) => {
       const band = ctx.createBiquadFilter();
       band.type = 'bandpass';
-      band.Q.value = FORMANT_Q - i * 2;
-      band.frequency.setValueAtTime(500, start);
-      voiceGain.connect(band).connect(master);
+      band.frequency.setValueAtTime(i === 3 ? FORMANT_4 : 500, start);
+      band.Q.setValueAtTime((i === 3 ? FORMANT_4 : 500) / BANDWIDTH[i], start);
+      const level = ctx.createGain();
+      level.gain.value = [1, 0.7, 0.4, 0.2][i];
+      voiceGain.connect(band).connect(level).connect(master);
       return band;
     });
-    voice.connect(voiceGain);
 
+    // --- The hiss, for consonants -------------------------------------------
     const hiss = ctx.createBufferSource();
     hiss.buffer = this.engine.longNoise;
     hiss.loop = true;
     const hissBand = ctx.createBiquadFilter();
     hissBand.type = 'bandpass';
     hissBand.frequency.setValueAtTime(4000, start);
-    hissBand.Q.value = 3;
+    hissBand.Q.setValueAtTime(3, start);
     const hissGain = ctx.createGain();
     hissGain.gain.setValueAtTime(0, start);
     hiss.connect(hissBand).connect(hissGain).connect(master);
 
+    // --- Say it -------------------------------------------------------------
+    const setFormants = (f, when, glide) => {
+      for (let i = 0; i < 3; i++) {
+        if (glide > 0) bands[i].frequency.linearRampToValueAtTime(f[i], when + glide);
+        else bands[i].frequency.setValueAtTime(f[i], when);
+        bands[i].Q.setValueAtTime(f[i] / BANDWIDTH[i], when);
+      }
+    };
+
     let t = start;
-    let nodes = 6;
-    for (const name of phonemes) {
-      const ph = PHONEMES[name];
+    let nodes = 9;
+    let sinceWordStart = 0;
+    let carriedLocus = null;
+    for (let i = 0; i < phonemes.length; i++) {
+      const ph = PHONEMES[phonemes[i]];
       if (!ph) continue;
       const level = (ph.level ?? 1) * this.level;
+      const through = (t - start) / Math.max(total, 0.001);
+
+      // Pitch: down across the phrase, up on the first vowel of a word, and
+      // never quite still.
+      if (ph.f && !ph.stop) {
+        const accent = sinceWordStart === 0 ? RISE : 1;
+        const wobble = 1 + WOBBLE * Math.sin(i * 2.4);
+        const target = PITCH * (1 - (1 - DECLINE) * through) * accent * wobble;
+        voice.frequency.linearRampToValueAtTime(target, t + ph.dur * 0.6);
+        sinceWordStart++;
+      }
 
       if (ph.silence) {
-        voiceGain.gain.setTargetAtTime(0, t, 0.01);
-        hissGain.gain.setTargetAtTime(0, t, 0.01);
+        voiceGain.gain.setTargetAtTime(0, t, 0.012);
+        hissGain.gain.setTargetAtTime(0, t, 0.012);
         t += ph.dur;
+        sinceWordStart = 0;
         continue;
       }
 
       if (ph.stop) {
-        // A plosive is mostly the silence in front of it.
         voiceGain.gain.setTargetAtTime(0, t, 0.008);
         hissGain.gain.setTargetAtTime(0, t, 0.008);
         t += ph.stop;
         hissBand.frequency.setValueAtTime(ph.burst, t);
         hissBand.Q.setValueAtTime(ph.q || 2, t);
-        hissGain.gain.setValueAtTime(0.7 * this.level, t);
+        hissGain.gain.setValueAtTime(0.6 * this.level, t);
         hissGain.gain.exponentialRampToValueAtTime(0.0001, t + ph.dur);
-        if (ph.voiced) {
-          voiceGain.gain.setValueAtTime(0.25 * this.level, t);
-        }
+        if (ph.locus) setFormants(ph.locus, t, 0);
+        if (ph.voiced) voiceGain.gain.setValueAtTime(0.2 * this.level, t);
+        // The vowel after this one starts from the locus and slides away.
+        carriedLocus = ph.locus || null;
         t += ph.dur;
         nodes++;
         continue;
       }
 
       if (ph.f) {
-        for (let i = 0; i < 3; i++) {
-          bands[i].frequency.linearRampToValueAtTime(ph.f[i], t + 0.03);
-          if (ph.to) bands[i].frequency.linearRampToValueAtTime(ph.to[i], t + ph.dur);
+        // A slide rather than a jump. Coming out of a stop it is slower still,
+        // because that slide is the consonant.
+        const glide = carriedLocus ? 0.055 : 0.035;
+        setFormants(ph.f, t, glide);
+        if (ph.to) {
+          for (let k = 0; k < 3; k++) {
+            bands[k].frequency.linearRampToValueAtTime(ph.to[k], t + ph.dur);
+            bands[k].Q.setValueAtTime(ph.to[k] / BANDWIDTH[k], t + ph.dur);
+          }
         }
-        voiceGain.gain.setTargetAtTime(level, t, 0.012);
+        // Vowels swell and fall away instead of sitting at one level.
+        voiceGain.gain.setTargetAtTime(level, t, 0.02);
+        voiceGain.gain.setTargetAtTime(level * 0.8, t + ph.dur * 0.6, 0.05);
+        carriedLocus = null;
       } else {
-        voiceGain.gain.setTargetAtTime(0, t, 0.012);
+        voiceGain.gain.setTargetAtTime(0, t, 0.015);
       }
 
       if (ph.noise) {
         hissBand.frequency.setValueAtTime(ph.noise, t);
         hissBand.Q.setValueAtTime(ph.q || 3, t);
-        hissGain.gain.setTargetAtTime(level * 0.6, t, 0.012);
+        hissGain.gain.setTargetAtTime(level * 0.5, t, 0.015);
       } else {
-        hissGain.gain.setTargetAtTime(0, t, 0.012);
+        hissGain.gain.setTargetAtTime(0, t, 0.015);
       }
 
       t += ph.dur;
       nodes++;
     }
 
-    // Let the last sound fall away rather than stopping dead.
-    voiceGain.gain.setTargetAtTime(0, t, 0.03);
+    // Fall away at the end rather than stopping dead, and take the pitch with it.
+    voice.frequency.linearRampToValueAtTime(PITCH * DECLINE * 0.94, t + 0.08);
+    voiceGain.gain.setTargetAtTime(0, t, 0.04);
     hissGain.gain.setTargetAtTime(0, t, 0.03);
     voice.start(start);
-    voice.stop(t + 0.2);
+    voice.stop(t + 0.3);
+    breath.start(start);
+    breath.stop(t + 0.3);
     hiss.start(start);
-    hiss.stop(t + 0.2);
+    hiss.stop(t + 0.3);
     return nodes;
   }
 }
