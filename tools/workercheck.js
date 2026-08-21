@@ -171,9 +171,14 @@ check(again.board.normal.length === 2, 'posting the same table twice does not du
 // --- Telling Discord ---------------------------------------------------------
 
 check(posted.length === 2, `a post per result that landed (${posted.length})`);
-check(/BBB/.test(posted[1]?.content) && /6-1/.test(posted[1].content)
-  && /top of the table/.test(posted[1].content),
-  `the message says who, what and where: ${JSON.stringify(posted[1]?.content)}`);
+const embed = posted[1]?.embeds?.[0];
+check(/BBB/.test(embed?.description || '') && /6-1/.test(embed.description)
+  && /top of the table/.test(embed.description),
+  `the message says who, what and where: ${JSON.stringify(embed?.description)}`);
+check(posted[1]?.username === 'WebSoccer' && /WebSoccer/.test(embed?.title || ''),
+  'the post says which game it came from');
+check(/^https?:\/\/\S+$/.test(embed?.url || '') && /Play at/.test(embed?.footer?.text || ''),
+  `the title links to the game (${embed?.url})`);
 check(posted.every((p) => p.allowed_mentions?.parse?.length === 0),
   'the post cannot ping anybody');
 

@@ -202,7 +202,7 @@ export class Arena {
     const post = fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(announcement(rows)),
+      body: JSON.stringify(announcement(rows, this.env?.GAME_URL)),
     }).catch(() => { /* the score is safe; the message was not */ });
     // Keeps the object alive long enough to finish the request after the
     // player's browser already has its answer.

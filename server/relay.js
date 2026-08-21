@@ -67,7 +67,7 @@ function shout(rows) {
   fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(announcement(rows)),
+    body: JSON.stringify(announcement(rows, process.env.GAME_URL)),
   }).catch(() => log('could not reach the Discord webhook'));
 }
 

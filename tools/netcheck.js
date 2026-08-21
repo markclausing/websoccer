@@ -216,15 +216,18 @@ async function main() {
 
     // The new entries should have been announced, once each.
     await waitFor(() => announced.length >= 2, 'the relay never posted to the webhook', 3000);
-    const said = announced.map((a) => a.content).join(' ');
+    const said = announced.map((a) => a.embeds?.[0]?.description || '').join(' ');
     if (!/AAA/.test(said) || !/BBB/.test(said)) {
       console.error(`FAIL: the announcements do not mention both players: ${said}`);
       failed = true;
     } else if (announced.length !== 2) {
       console.error(`FAIL: ${announced.length} posts for 2 new scores`);
       failed = true;
+    } else if (!announced.every((a) => a.embeds?.[0]?.url && a.username === 'WebSoccer')) {
+      console.error('FAIL: the posts do not name the game or link to it');
+      failed = true;
     } else {
-      console.log('OK: a new entry is posted to the Discord webhook, once each');
+      console.log('OK: a new entry is posted to Discord, once each, naming the game and linking to it');
     }
 
     // And it survives a restart, because the board is a file.
