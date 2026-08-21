@@ -113,6 +113,34 @@ export function merge(mine, theirs) {
   return out;
 }
 
+/**
+ * A board with everything set before `since` dropped.
+ *
+ * This is what makes emptying the shared board stick. Wiping the server does not
+ * wipe anybody's browser, and the next time one of them syncs it posts its own
+ * copy straight back - which is exactly what happened the first time the board
+ * was cleaned. So a cleared board remembers when it was cleared, and refuses
+ * anything older. A score set before the wipe is not news any more.
+ */
+export function since(board, when) {
+  if (!when) return merge({}, board);
+  const out = {};
+  for (const level of LEVELS) {
+    out[level] = (board?.[level] || []).filter((row) => Number(row?.at) >= when);
+  }
+  return merge({}, out);
+}
+
+/** A board with these ids taken out, wherever they sit. */
+export function without(board, ids) {
+  const drop = new Set(ids || []);
+  const out = {};
+  for (const level of LEVELS) {
+    out[level] = (board?.[level] || []).filter((row) => !drop.has(row?.id));
+  }
+  return merge({}, out);
+}
+
 export function levelOf(difficulty) {
   return LEVELS.includes(difficulty) ? difficulty : 'normal';
 }

@@ -226,6 +226,48 @@ check(cleared.status === 200 && clearedBody.board.normal.length === 0,
 check((await (await arena.scores(request('GET', '/highscores'))).json()).board.normal.length === 0,
   'and it stays empty when read back');
 
+// The rows that were just wiped must not be allowed straight back in by a
+// browser that still has them - which is what happened the first time a real
+// board was cleaned.
+await arena.scores(request('POST', '/highscores', { board: laptop }));
+check((await (await arena.scores(request('GET', '/highscores'))).json()).board.normal.length === 0,
+  'a browser reposting scores from before the wipe cannot refill the board');
+
+const afterWipe = { normal: [entry('new1', 'NEW', 3, 0, Date.now() + 1000)], easy: [], hard: [] };
+await arena.scores(request('POST', '/highscores', { board: afterWipe }));
+check((await (await arena.scores(request('GET', '/highscores'))).json()).board.normal.length === 1,
+  'but a score set after the wipe still counts');
+
+// Taking one row off without touching the others, and keeping it off.
+const future = Date.now() + 2000;
+const keep = { normal: [entry('keeper', 'GUD', 4, 0, future)], easy: [], hard: [] };
+const junky = { normal: [entry('junk', 'BAD', 9, 0, future)], easy: [], hard: [] };
+await arena.scores(request('POST', '/highscores', { board: keep }));
+const withJunk = await (await arena.scores(request('POST', '/highscores', { board: junky }))).json();
+const namesBefore = withJunk.board.normal.map((r) => r.name);
+check(namesBefore.includes('BAD') && namesBefore.includes('GUD'),
+  'both rows are on the board to begin with');
+
+const removed = await arena.remove({
+  method: 'POST',
+  url: 'x',
+  headers: { get: (h) => (h === 'x-admin-key' ? 'letmein' : null) },
+  text: async () => JSON.stringify({ ids: ['junk'] }),
+});
+const left = (await removed.json()).board.normal.map((r) => r.name);
+check(!left.includes('BAD') && left.includes('GUD'),
+  `one row comes off while the rest of the board stands (${left.join(', ')})`);
+
+await arena.scores(request('POST', '/highscores', { board: junky }));
+const after = (await (await arena.scores(request('GET', '/highscores'))).json()).board.normal;
+check(!after.some((r) => r.id === 'junk'),
+  'and the browser that set it cannot post it back');
+
+const noKeyRemove = await arena.remove({
+  method: 'POST', url: 'x', headers: { get: () => null }, text: async () => '{"ids":["keeper"]}',
+});
+check(noKeyRemove.status === 403, 'removing a row needs the key too');
+
 // A Worker with no key set has no reset door at all.
 const locked = new Arena(fakeState());
 check((await locked.reset({ method: 'POST', url: 'x', headers: { get: () => 'anything' } })).status === 404,

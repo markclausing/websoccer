@@ -33,6 +33,7 @@ matches find each other, and every browser sees the same high score table.
   which is what `npm start` runs locally.
 - `GET /highscores` — the board.
 - `POST /highscores/reset` — empties the board, if you have set a key (below).
+- `POST /highscores/remove` — takes named rows off and keeps them off.
 - A new entry is posted to Discord, if you have set a webhook (below).
 - `POST /highscores` — send yours, get everyone's back merged. The merge is the
   same function the browser runs (`src/highscores.js`), so the two cannot
@@ -87,7 +88,24 @@ curl -X POST -H "x-admin-key: your-password" \
   https://websoccer.your-name.workers.dev/highscores/reset
 ```
 
-With no `ADMIN_KEY` set the door is not there at all, which is the safe default
+Emptying it remembers *when* it was emptied and refuses anything older, because
+wiping the server does not wipe anybody's browser: without that, the next sync
+posts the old rows straight back and the board refills itself. This is not
+hypothetical - it is what happened the first time.
+
+To take one row off instead of all of them, which is what you want when the board
+also holds scores people earned:
+
+```sh
+curl https://websoccer.your-name.workers.dev/highscores      # find the id
+curl -X POST -H "x-admin-key: your-password" -H "content-type: application/json" \
+  -d '{"ids":["mt2w0p0c-1fwwy"]}' \
+  https://websoccer.your-name.workers.dev/highscores/remove
+```
+
+Those ids are remembered too, for the same reason.
+
+With no `ADMIN_KEY` set neither door is there at all, which is the safe default
 if you deploy this and never read this file.
 
 ## What it does not do

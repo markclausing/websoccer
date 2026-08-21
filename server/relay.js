@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeFrame, createParser, encodeFrame, handshake } from './ws.js';
-import { merge } from '../src/highscores.js';
+import { merge, since } from '../src/highscores.js';
 import { announcement, newRows } from '../worker/announce.js';
 
 // One process does three things: serve the static files, pass inputs between two
@@ -52,6 +52,9 @@ function writeBoard(board) {
 }
 
 let board = readBoard();
+// When the board was last emptied. Anything set before that is refused, or every
+// browser still holding the old rows would post them straight back.
+let clearedAt = Number(process.env.SCORES_CLEARED_AT) || 0;
 
 /**
  * Tells Discord about a new entry, if a webhook is configured. Never awaited:
@@ -115,7 +118,7 @@ function handleScores(req, res) {
     // merge() is the same function the browser runs, and it throws nothing away
     // quietly: rows that are not a real result never survive it.
     const was = board;
-    const merged = merge(board, sent?.board || {});
+    const merged = merge(board, since(sent?.board || {}, clearedAt));
     if (JSON.stringify(merged) !== JSON.stringify(was)) {
       board = merged;
       writeBoard(board);

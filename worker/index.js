@@ -13,7 +13,7 @@
  * See README.md next door for the two commands that put it live.
  */
 
-import { merge } from '../src/highscores.js';
+import { merge, since, without } from '../src/highscores.js';
 import { announcement, newRows } from './announce.js';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
@@ -39,11 +39,16 @@ export class Arena {
     /** @type {Map<string, {host: object|null, guest: object|null}>} */
     this.rooms = new Map();
     this.board = null;
+    this.clearedAt = 0;
+    // Rows taken off by hand. Kept, because deleting a row does not delete it
+    // from the browser that set it, and that browser will post it back.
+    this.removed = [];
   }
 
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === '/highscores/reset') return this.reset(request);
+    if (url.pathname === '/highscores/remove') return this.remove(request);
     if (url.pathname === '/highscores') return this.scores(request);
     if (request.headers.get('Upgrade') === 'websocket') return this.open();
     return new Response('WebSoccer relay. Point the game at this address.', {
@@ -176,8 +181,12 @@ export class Arena {
     if (request.headers.get('x-admin-key') !== key) return json({ error: 'wrong key' }, 403);
 
     this.board = merge({}, {});
+    // Remembered, or every browser still holding the old rows would post them
+    // straight back and the board would refill itself.
+    this.clearedAt = Date.now();
     await this.state.storage.put('board', this.board);
-    return json({ board: this.board, cleared: true });
+    await this.state.storage.put('clearedAt', this.clearedAt);
+    return json({ board: this.board, cleared: true, clearedAt: this.clearedAt });
   }
 
   /**
@@ -200,10 +209,46 @@ export class Arena {
     this.state?.waitUntil?.(post);
   }
 
+  /**
+   * Takes named rows off the board and keeps them off.
+   *
+   * The blunt version of this is reset(), which is no use when the board also
+   * holds scores people actually earned. The ids are remembered, because a row
+   * deleted here still exists in the browser that set it, and that browser will
+   * post it back at the next sync.
+   */
+  async remove(request) {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (request.method !== 'POST') return json({ error: 'POST to remove' }, 405);
+    const key = this.env?.ADMIN_KEY;
+    if (!key) return json({ error: 'no ADMIN_KEY set on this Worker' }, 404);
+    if (request.headers.get('x-admin-key') !== key) return json({ error: 'wrong key' }, 403);
+
+    let ids;
+    try {
+      ids = JSON.parse(await request.text())?.ids;
+    } catch {
+      return json({ error: 'not JSON' }, 400);
+    }
+    if (!Array.isArray(ids) || !ids.length) return json({ error: 'send { ids: [...] }' }, 400);
+
+    await this.load();
+    this.board = without(this.board, ids);
+    // Capped: this is a list of mistakes, not a database.
+    this.removed = [...new Set([...this.removed, ...ids.map(String)])].slice(-200);
+    await this.state.storage.put('board', this.board);
+    await this.state.storage.put('removed', this.removed);
+    return json({ board: this.board, removed: ids.length });
+  }
+
   // --- The shared board ------------------------------------------------------
 
   async load() {
-    if (!this.board) this.board = merge({}, (await this.state.storage.get('board')) || {});
+    if (!this.board) {
+      this.board = merge({}, (await this.state.storage.get('board')) || {});
+      this.clearedAt = (await this.state.storage.get('clearedAt')) || 0;
+      this.removed = (await this.state.storage.get('removed')) || [];
+    }
     return this.board;
   }
 
@@ -227,7 +272,9 @@ export class Arena {
     // The same merge the browser runs, so the two cannot disagree about what a
     // board is: rows that are not a real result do not survive it.
     const before = await this.load();
-    const after = merge(before, sent?.board || {});
+    // Anything set before the board was last emptied is not allowed back in.
+    const arriving = without(since(sent?.board || {}, this.clearedAt), this.removed);
+    const after = merge(before, arriving);
     if (JSON.stringify(after) !== JSON.stringify(before)) {
       this.board = after;
       await this.state.storage.put('board', after);
