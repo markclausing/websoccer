@@ -6,6 +6,9 @@
 // falls on.
 
 import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createMatch, hashState } from '../src/game/state.js';
 import { step } from '../src/game/sim.js';
 import { Signal } from '../src/net/signal.js';
@@ -46,8 +49,11 @@ async function waitFor(check, what, timeoutMs = 8000) {
 }
 
 async function main() {
+  // A board of its own, so a test run never touches whatever scores are lying
+  // next to a real server.
+  const scoresFile = join(tmpdir(), `websoccer-scores-${process.pid}.json`);
   const server = spawn(process.execPath, ['server/relay.js'], {
-    env: { ...process.env, PORT: String(PORT), QUIET: '1' },
+    env: { ...process.env, PORT: String(PORT), QUIET: '1', SCORES_FILE: scoresFile },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   server.stdout.resume();
@@ -136,9 +142,70 @@ async function main() {
 
     a.transport.dispose();
     b.transport.dispose();
+
+    // --- The shared board --------------------------------------------------
+    //
+    // Two devices, neither of which has seen the other's scores. Both post
+    // their own table; both must come away with the same board.
+    const boardUrl = `http://localhost:${PORT}/highscores`;
+    const post = async (board) => {
+      const res = await fetch(boardUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ board }),
+      });
+      return (await res.json()).board;
+    };
+    const entry = (id, name, scored, conceded, at) => ({
+      id, name, scored, conceded, halfSeconds: 120, at,
+    });
+
+    const phone = { easy: [], normal: [entry('p1', 'AAA', 4, 0, 1000)], hard: [] };
+    const laptop = { easy: [], normal: [entry('l1', 'BBB', 6, 1, 2000)], hard: [] };
+    const afterPhone = await post(phone);
+    const afterLaptop = await post(laptop);
+
+    if (afterLaptop.normal.length !== 2) {
+      console.error(`FAIL: the board has ${afterLaptop.normal.length} rows, expected both devices' scores`);
+      failed = true;
+    } else if (afterLaptop.normal[0].name !== 'BBB') {
+      console.error(`FAIL: the board is in the wrong order, top row is ${afterLaptop.normal[0].name}`);
+      failed = true;
+    } else if (afterPhone.normal.length !== 1) {
+      console.error('FAIL: the first device was sent scores it should not have seen yet');
+      failed = true;
+    } else {
+      console.log('OK: two devices post their own tables and end up with one board');
+    }
+
+    // A defeat, a nonsense row and a stranger's junk must not survive the trip.
+    const junk = await post({
+      normal: [entry('bad1', 'ZZZ', 0, 9, 3000), { id: 'bad2', name: 'X' }, 'nonsense'],
+      hard: [],
+      easy: [],
+    });
+    if (junk.normal.length !== 2) {
+      console.error(`FAIL: the server took rubbish onto the board (${junk.normal.length} rows)`);
+      failed = true;
+    } else {
+      console.log('OK: the server refuses defeats and nonsense rows');
+    }
+
+    // And it survives a restart, because the board is a file.
+    const stored = await (await fetch(boardUrl)).json();
+    if (stored.board.normal.length !== 2) {
+      console.error('FAIL: reading the board back gave something else');
+      failed = true;
+    } else {
+      console.log('OK: the board is readable and kept on disk');
+    }
+
     process.exitCode = failed ? 1 : 0;
   } finally {
     server.kill();
+    try {
+      rmSync(join(tmpdir(), `websoccer-scores-${process.pid}.json`), { force: true });
+    } catch { /* nothing to clean up */ }
   }
 }
 

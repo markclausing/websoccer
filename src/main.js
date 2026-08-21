@@ -9,6 +9,7 @@ import {
 import { LineupEditor } from './lineupEditor.js';
 import { Highscores, placeOf } from './highscores.js';
 import { NameEntry } from './nameEntry.js';
+import { boardFor, relayFor } from './config.js';
 import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
 import { drawTitleScreen } from './render/titlescreen.js';
@@ -227,6 +228,7 @@ const nameEntry = new NameEntry(document.getElementById('hiscoreLetters'), (name
   renderScores(pending.difficulty, place);
   document.getElementById('scoresBox').open = true;
   toMenu();
+  syncScores();
 });
 
 const pending = { open: false, entry: null, difficulty: 'normal', freshId: null };
@@ -283,6 +285,35 @@ function lastName() {
     return globalThis.localStorage?.getItem('websoccer.name') || 'AAA';
   } catch {
     return 'AAA';
+  }
+}
+
+/**
+ * Trades boards with the relay: we send ours, it merges and sends back the lot.
+ * One request in each direction would race - two devices posting at once would
+ * each overwrite the other - so the merge happens on the server, using the same
+ * function this page uses, and the answer is merged in here again.
+ *
+ * Failure is not an error. No relay configured, offline, server asleep: you keep
+ * your own table and nobody hears about it.
+ */
+async function syncScores() {
+  const url = boardFor(location);
+  if (!url) return false;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ board: highscores.all() }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data?.board) return false;
+    highscores.absorb(data.board);
+    renderScores(difficulty);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -578,6 +609,8 @@ document.querySelectorAll('[data-difficulty]').forEach((btn) => {
 });
 
 renderScores(difficulty);
+// Trades boards with the relay, if there is one, the moment the menu appears.
+syncScores();
 
 document.querySelectorAll('[data-mode]').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -646,10 +679,7 @@ function setOnlineStatus(text) {
  * at one running elsewhere without rebuilding anything.
  */
 function relayUrl() {
-  const override = new URLSearchParams(location.search || '').get('relay');
-  if (override) return override;
-  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-  return proto + location.host;
+  return relayFor(location);
 }
 
 const NO_RELAY_HINT = 'Could not reach a relay server. This page is hosted as static files, '

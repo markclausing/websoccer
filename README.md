@@ -262,6 +262,26 @@ that distance in a ring around the carrier, which crowded him more than before
 and dropped scoring to 0.2 goals a match. Spacing the lines apart does the same
 job without the ring.
 
+## High scores
+
+Beat the CPU and you are asked for three letters, the way a cabinet asks: stick
+up and down for the letter, left and right to move along, kick to confirm.
+Typing works too. There is a table of ten per difficulty, and a result gets on it
+by margin first, then goals scored, then who got there earliest. A draw counts.
+A defeat never does.
+
+By default the table lives in your own browser and needs nothing hosted
+anywhere. Point the game at a relay - see below - and it becomes one shared
+board instead: your browser sends its table, the server merges it with
+everyone's and sends the lot back. Merging is done with the same function on
+both sides, and every row carries an id, so a score that has been round three
+devices is still one row, and it does not matter who syncs first.
+
+Nothing stops someone posting a result they did not earn; a board with no
+accounts on it cannot tell. It refuses defeats and nonsense, caps each table at
+ten, and beyond that it trusts the people you gave the address to.
+
+
 ## Playing online
 
 1. Both players open the page from the same server.
@@ -281,6 +301,10 @@ Where this works:
 - **Two computers on the same network**: the second one opens
   `http://<ip-of-the-host>:5173/`. The page automatically connects back to the
   server it came from. Mind your firewall.
+- **On Cloudflare, free**: `cd worker && npx wrangler login && npx wrangler deploy`
+  puts the same relay on a Worker, and one address then covers both online play
+  and the shared high score board. Put it in `src/config.js` as `DEFAULT_RELAY`
+  and every visitor uses it without a query string. See `worker/README.md`.
 - **Over the internet**: put `server/relay.js` on a server (or tunnel port 5173
   outwards). Behind HTTPS the client switches to `wss://` on its own.
 

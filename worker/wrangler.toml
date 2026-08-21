@@ -1,0 +1,18 @@
+# Deploy with:  npx wrangler login  &&  npx wrangler deploy
+#
+# Everything lives in one Durable Object: a plain Worker is stateless and cannot
+# hold two players' sockets together. The SQLite storage class in the migration
+# below is what makes Durable Objects available on the free plan - swap it for
+# new_classes and it will ask you for a paid one.
+
+name = "websoccer"
+main = "index.js"
+compatibility_date = "2025-04-01"
+
+[[durable_objects.bindings]]
+name = "ARENA"
+class_name = "Arena"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Arena"]

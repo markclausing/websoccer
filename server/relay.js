@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeFrame, createParser, encodeFrame, handshake } from './ws.js';
+import { merge } from '../src/highscores.js';
 
-// One process does two things: serve the static files and pass inputs between
-// two players. The server knows nothing about the game and keeps no score - it
-// is a relay. All the logic runs on the players' own machines, because the
-// simulation is deterministic.
+// One process does three things: serve the static files, pass inputs between two
+// players, and keep the shared high score board. It still knows nothing about
+// the game - all the logic runs on the players' own machines, because the
+// simulation is deterministic - and the board is only a list it merges and hands
+// back, using the same merge the browser uses so the two cannot disagree.
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 5173;
@@ -23,9 +25,94 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
+// --- The shared board -------------------------------------------------------
+//
+// A file next to the server, read once and written after every change. A hobby
+// board of thirty rows does not need a database, and a file can be copied,
+// inspected and deleted by hand.
+
+const SCORES_FILE = process.env.SCORES_FILE || path.join(ROOT, 'highscores.json');
+const MAX_BODY = 64 * 1024; // a whole board is a couple of kilobytes
+
+function readBoard() {
+  try {
+    return merge({}, JSON.parse(fs.readFileSync(SCORES_FILE, 'utf8')));
+  } catch {
+    return merge({}, {});
+  }
+}
+
+function writeBoard(board) {
+  // Written beside the real file and renamed, so a crash halfway through cannot
+  // leave everybody's scores as half a JSON document.
+  const tmp = `${SCORES_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(board));
+  fs.renameSync(tmp, SCORES_FILE);
+}
+
+let board = readBoard();
+
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'content-type',
+};
+
+function sendJson(res, code, body) {
+  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', ...CORS });
+  res.end(JSON.stringify(body));
+}
+
+function handleScores(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, CORS).end();
+    return;
+  }
+  if (req.method === 'GET') {
+    sendJson(res, 200, { board });
+    return;
+  }
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: 'GET to read the board, POST to add to it' });
+    return;
+  }
+
+  let body = '';
+  let tooBig = false;
+  req.on('data', (chunk) => {
+    body += chunk;
+    if (body.length > MAX_BODY && !tooBig) {
+      tooBig = true;
+      sendJson(res, 413, { error: 'that is not a high score table' });
+      req.destroy();
+    }
+  });
+  req.on('end', () => {
+    if (tooBig) return;
+    let sent;
+    try {
+      sent = JSON.parse(body);
+    } catch {
+      sendJson(res, 400, { error: 'not JSON' });
+      return;
+    }
+    // merge() is the same function the browser runs, and it throws nothing away
+    // quietly: rows that are not a real result never survive it.
+    const before = JSON.stringify(board);
+    board = merge(board, sent?.board || {});
+    const changed = JSON.stringify(board) !== before;
+    if (changed) writeBoard(board);
+    sendJson(res, 200, { board });
+  });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   let rel = decodeURIComponent(url.pathname);
+  if (rel === '/highscores') {
+    handleScores(req, res);
+    return;
+  }
   if (rel === '/') rel = '/index.html';
 
   const file = path.join(ROOT, rel);
