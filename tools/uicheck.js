@@ -382,6 +382,50 @@ async function main() {
     }
     console.log(`OK: the commentator speaks (${spoken} filter moves a line), waits ${6}s between lines, and can be switched off`);
 
+    // What he actually says, driven by the events the simulation reports. The
+    // wording is the point here, so the voice is replaced by a notebook.
+    const heard = [];
+    const scribe = new Sfx(engine, {
+      say: (event) => { heard.push(`<${event}>`); return 5; },
+      line: (text) => { heard.push(text); return 5; },
+    });
+    scribe.talking = true;
+    const hear = (events) => {
+      heard.length = 0;
+      engine.ctx.currentTime += 30; // past the gap between lines
+      scribe.play(events);
+      return heard.join(' | ');
+    };
+
+    const saidStart = hear([{ type: 'kickoff', reason: 'start', score: [0, 0] }]);
+    const saidThrow = hear([{ type: 'restart', kind: 'THROW-IN', team: 1 }]);
+    const saidKick = hear([{ type: 'restart', kind: 'GOAL KICK', team: 0 }]);
+    const saidScore = hear([{ type: 'kickoff', reason: 'goal', score: [2, 0] }]);
+    const saidEnd = hear([{ type: 'fulltime', score: [3, 1] }]);
+    const saidHalf = hear([{ type: 'kickoff', reason: 'half', score: [1, 1] }]);
+
+    const expected = {
+      'the match start': [saidStart, '<start>'],
+      'a throw-in to red': [saidThrow, 'throw in for red'],
+      'a goal kick to blue': [saidKick, 'goal kick for blue'],
+      'the score after a goal': [saidScore, 'blue two red nil'],
+      'full time': [saidEnd, 'full time blue three red one'],
+      'half time': [saidHalf, ''],
+    };
+    for (const [what, [got, want]] of Object.entries(expected)) {
+      if (got !== want) throw new Error(`${what}: said "${got}", expected "${want}"`);
+    }
+    // Two goals caught in one frame must not talk over themselves, but the
+    // scoreline that follows a goal is never held back.
+    const back2back = hear([
+      { type: 'restart', kind: 'CORNER', team: 0 },
+      { type: 'kickoff', reason: 'goal', score: [4, 4] },
+    ]);
+    if (back2back !== 'corner for blue | blue four red four') {
+      throw new Error(`a scoreline was held back behind a restart: "${back2back}"`);
+    }
+    console.log('OK: he names the side at a restart, reads the score after a goal, and says nil');
+
     // 1d. The on-screen controls: a thumb on the stick has to come out as the
     // same bitmask a keyboard would produce.
     const pad = () => {

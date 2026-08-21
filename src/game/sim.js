@@ -70,15 +70,20 @@ function advancePhase(state) {
       state.phase = 'play';
       state.message = '';
       state.events.push({ type: 'whistle', kind: 'start' });
+      state.events.push({
+        type: 'kickoff',
+        reason: state.kickoffReason || 'start',
+        score: [state.score[0], state.score[1]],
+      });
       break;
     case 'goal':
-      setupKickoff(state, 1 - state.lastGoalTeam);
+      setupKickoff(state, 1 - state.lastGoalTeam, 'goal');
       break;
     case 'halftime':
       state.half = 2;
       state.halfTick = 0;
       for (const team of state.teams) team.attackDir *= -1;
-      setupKickoff(state, 1 - state.firstKickoffTeam);
+      setupKickoff(state, 1 - state.firstKickoffTeam, 'half');
       break;
     default:
       break;
@@ -99,6 +104,7 @@ function updateClock(state) {
     state.phaseTimer = 0;
     state.message = 'FULL TIME';
     state.events.push({ type: 'whistle', kind: 'end' });
+    state.events.push({ type: 'fulltime', score: [state.score[0], state.score[1]] });
   }
 }
 
@@ -766,6 +772,9 @@ function setRestart(state, x, y, teamIdx, message, forcedTaker = null) {
   state.restartTeam = teamIdx;
   state.message = message;
   state.events.push({ type: 'whistle', kind: 'restart' });
+  // Which restart, and whose. The message on screen carries the same
+  // information, but reading text back is no way to build an interface.
+  state.events.push({ type: 'restart', kind: message, team: teamIdx });
 
   // Nearest outfield player takes it - unless the restart names someone, which
   // a goal kick does: that is the keeper's to take.

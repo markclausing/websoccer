@@ -160,8 +160,11 @@ export function targetGoalY(team) {
   return team.attackDir < 0 ? FIELD.top : FIELD.bottom;
 }
 
-export function setupKickoff(state, kickoffTeam) {
+export function setupKickoff(state, kickoffTeam, reason = 'start') {
   state.kickoffTeam = kickoffTeam;
+  // Why we are on the centre spot: the commentator says different things at the
+  // start of a match, after a goal and after half time.
+  state.kickoffReason = reason;
   state.phase = 'kickoff';
   state.phaseTimer = KICKOFF_TICKS;
   state.message = '';

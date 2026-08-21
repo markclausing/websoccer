@@ -791,3 +791,34 @@ if (ranLanes.some((n) => n > 1)) {
   process.exit(1);
 }
 console.log('OK: saves and long runs are reported, and nothing else is');
+
+// The events the commentator reads the score from. Whole match, so the reasons
+// and the scorelines have to line up with what actually happened.
+const spoken = [];
+const talkie = createMatch({ seed: 1234, halfSeconds: 60, humans: [false, false] });
+while (talkie.phase !== 'fulltime' && talkie.tick < TICK_RATE * 400) {
+  step(talkie, [0, 0]);
+  for (const e of talkie.events) {
+    if (e.type === 'kickoff') spoken.push(`${e.reason} ${e.score.join('-')}`);
+    if (e.type === 'fulltime') spoken.push(`fulltime ${e.score.join('-')}`);
+  }
+}
+if (spoken[0] !== 'start 0-0') {
+  console.error(`FAIL: the match did not open with a kickoff at nil-nil (${spoken[0]})`);
+  process.exit(1);
+}
+const ended = spoken[spoken.length - 1];
+if (ended !== `fulltime ${talkie.score.join('-')}`) {
+  console.error(`FAIL: full time reported "${ended}" for a ${talkie.score.join('-')} match`);
+  process.exit(1);
+}
+if (!spoken.some((s) => s.startsWith('goal '))) {
+  console.error('FAIL: no restart from the centre spot was attributed to a goal');
+  process.exit(1);
+}
+if (spoken.filter((s) => s.startsWith('half ')).length !== 1) {
+  console.error('FAIL: the second half did not start exactly once');
+  process.exit(1);
+}
+console.log(`Commentary: ${spoken.join(', ')}`);
+console.log('OK: the scoreline he reads out is the one on the board');

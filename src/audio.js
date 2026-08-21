@@ -11,6 +11,8 @@
  * melody itself is written here, not copied from any of them.
  */
 
+import { scoreWords } from './speech.js';
+
 const BPM = 150;
 const STEP = 60 / BPM / 4; // one sixteenth note, in seconds
 const BARS = 8;
@@ -289,6 +291,15 @@ export class Chiptune {
 /** The least time between two lines of commentary, in seconds. */
 const LINE_GAP = 6;
 
+/** "throw in for red", and so on. The restart names whose it is. */
+function restartLine(e) {
+  const side = e.team === 0 ? 'blue' : 'red';
+  if (e.kind === 'THROW-IN') return `throw in for ${side}`;
+  if (e.kind === 'GOAL KICK') return `goal kick for ${side}`;
+  if (e.kind === 'CORNER') return `corner for ${side}`;
+  return '';
+}
+
 export class Sfx {
   constructor(engine, speech = null) {
     this.engine = engine;
@@ -394,13 +405,16 @@ export class Sfx {
    * covers a third of the pitch. Goals ignore the gap, being the one thing
    * nobody minds hearing about.
    */
-  commentary(kind) {
-    if (!this.ready() || !this.talking || !this.speech) return 0;
+  commentary(what, { text = false, force = false } = {}) {
+    if (!this.ready() || !this.talking || !this.speech || !what) return 0;
     const now = this.ctx.currentTime;
-    if (kind !== 'goal' && now - this.lastLine < LINE_GAP) return 0;
+    // A goal, the score after one and the final whistle are never held back.
+    const urgent = force || what === 'goal';
+    if (!urgent && now - this.lastLine < LINE_GAP) return 0;
     this.lastLine = now;
     // A goal waits for the roar to get going, then talks over it.
-    return this.speech.say(kind, kind === 'goal' ? now + 0.5 : now);
+    const at = what === 'goal' ? now + 0.5 : now;
+    return text ? this.speech.line(what, at) : this.speech.say(what, at);
   }
 
   play(events) {
@@ -411,6 +425,17 @@ export class Sfx {
         this.cheer();
         this.commentary('goal');
       } else if (e.type === 'save' || e.type === 'run') this.commentary(e.type);
+      else if (e.type === 'restart') this.commentary(restartLine(e), { text: true });
+      else if (e.type === 'kickoff') {
+        // The start of the match, and the scoreline every time play restarts
+        // from the centre spot after a goal. Half time gets nothing: you have
+        // just heard the score.
+        if (e.reason === 'start') this.commentary('start');
+        else if (e.reason === 'goal') this.commentary(scoreWords(e.score), { text: true, force: true });
+      } else if (e.type === 'fulltime') {
+        const score = scoreWords(e.score);
+        this.commentary(score ? `full time ${score}` : 'thats full time', { text: true, force: true });
+      }
       else if (e.type === 'whistle') this.whistle(e.kind);
       else if (e.type === 'slide') this.slide();
       else if (e.type === 'kick' && !kicked) {

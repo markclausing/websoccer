@@ -34,6 +34,7 @@ const PHONEMES = {
   AA: { f: [730, 1090, 2440], dur: 0.15 },
   AO: { f: [570, 840, 2410], dur: 0.15 },
   UW: { f: [300, 870, 2240], dur: 0.13 },
+  UH: { f: [440, 1020, 2240], dur: 0.10 },
   ER: { f: [490, 1350, 1690], dur: 0.14 },
   // Diphthongs: the same thing, moving.
   EY: { f: [530, 1840, 2480], to: [300, 2200, 2900], dur: 0.19 },
@@ -54,6 +55,7 @@ const PHONEMES = {
   TH: { noise: 4600, q: 2, dur: 0.09, level: 0.4 },
   // Voiced fricatives: hiss and buzz at once.
   V: { f: [300, 1100, 2400], noise: 2400, q: 2, dur: 0.09, level: 0.6 },
+  DH: { f: [300, 1400, 2500], noise: 3800, q: 2, dur: 0.07, level: 0.5 },
   Z: { f: [280, 1600, 2500], noise: 4600, q: 5, dur: 0.10, level: 0.6 },
   // Plosives
   T: { stop: 0.045, burst: 3600, q: 2, dur: 0.03 },
@@ -67,26 +69,90 @@ const PHONEMES = {
 };
 
 /**
- * What the commentator can say, spelled the way it has to be pronounced rather
- * than the way it is written - there is no English spelling in here, and there
- * is not going to be.
+ * The vocabulary, spelled the way it has to be pronounced rather than the way it
+ * is written. There is no English spelling in here and there is not going to be:
+ * a rule that turns "eight" into a long A is a rule with a hundred exceptions,
+ * and this commentator only needs forty words.
+ */
+export const WORDS = {
+  blue: ['B', 'L', 'UW'],
+  red: ['R', 'EH', 'D'],
+  nil: ['N', 'IH', 'L'],
+  one: ['W', 'AH', 'N'],
+  two: ['T', 'UW'],
+  three: ['TH', 'R', 'IY'],
+  four: ['F', 'AO', 'R'],
+  five: ['F', 'AY', 'V'],
+  six: ['S', 'IH', 'K', 'S'],
+  seven: ['S', 'EH', 'V', 'AH', 'N'],
+  eight: ['EY', 'T'],
+  nine: ['N', 'AY', 'N'],
+  ten: ['T', 'EH', 'N'],
+  eleven: ['IH', 'L', 'EH', 'V', 'AH', 'N'],
+  twelve: ['T', 'W', 'EH', 'L', 'V'],
+  a: ['AH'],
+  against: ['AH', 'G', 'EH', 'N', 'S', 'T'],
+  all: ['AO', 'L'],
+  and: ['AH', 'N', 'D'],
+  away: ['AH', 'W', 'EY'],
+  corner: ['K', 'AO', 'R', 'N', 'ER'],
+  for: ['F', 'AO', 'R'],
+  full: ['F', 'UH', 'L'],
+  go: ['G', 'OW'],
+  goal: ['G', 'OW', 'L'],
+  good: ['G', 'UH', 'D'],
+  great: ['G', 'R', 'EY', 'T'],
+  half: ['HH', 'AE', 'F'],
+  here: ['HH', 'IY', 'R'],
+  hes: ['HH', 'IY', 'Z'],
+  in: ['IH', 'N'],
+  its: ['IH', 'T', 'S'],
+  kick: ['K', 'IH', 'K'],
+  level: ['L', 'EH', 'V', 'AH', 'L'],
+  on: ['AA', 'N'],
+  run: ['R', 'AH', 'N'],
+  save: ['S', 'EY', 'V'],
+  saved: ['S', 'EY', 'V', 'D'],
+  thats: ['DH', 'AE', 'T', 'S'],
+  throw: ['TH', 'R', 'OW'],
+  time: ['T', 'AY', 'M'],
+  we: ['W', 'IY'],
+  what: ['W', 'AH', 'T'],
+};
+
+const NUMBERS = [
+  'nil', 'one', 'two', 'three', 'four', 'five', 'six',
+  'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+];
+
+/** How a scoreline is read out: "blue two, red nil". */
+export function scoreWords(score) {
+  if (score[0] > 12 || score[1] > 12) return ''; // past twelve, say nothing
+  return `blue ${NUMBERS[score[0]]} red ${NUMBERS[score[1]]}`;
+}
+
+/** Words to phonemes, with a gap where the spaces are. */
+export function phrase(text) {
+  const out = [];
+  for (const word of String(text).toLowerCase().split(/\s+/)) {
+    const sounds = WORDS[word];
+    if (!sounds) continue; // a word he has not been taught is simply not said
+    if (out.length) out.push('_');
+    out.push(...sounds);
+  }
+  return out;
+}
+
+/**
+ * What he says, and when. Short on purpose: two or three words read clearly,
+ * a sentence turns to mush.
  */
 export const LINES = {
-  goal: [
-    ['G', 'OW', 'L'],
-    ['W', 'AH', 'T', '_', 'AH', '_', 'G', 'OW', 'L'],
-    ['IH', 'T', 'S', '_', 'IH', 'N'],
-  ],
-  save: [
-    ['S', 'EY', 'V', 'D'],
-    ['W', 'AH', 'T', '_', 'AH', '_', 'S', 'EY', 'V'],
-    ['G', 'R', 'EY', 'T', '_', 'S', 'EY', 'V'],
-  ],
-  run: [
-    ['HH', 'IY', 'Z', '_', 'AH', 'W', 'EY'],
-    ['G', 'OW', '_', 'AA', 'N'],
-    ['W', 'AH', 'T', '_', 'AH', '_', 'R', 'AH', 'N'],
-  ],
+  goal: ['goal', 'what a goal', 'its in'],
+  save: ['saved', 'what a save', 'great save'],
+  run: ['hes away', 'go on', 'what a run'],
+  start: ['blue against red', 'here we go'],
+  fulltime: ['thats full time', 'full time'],
 };
 
 /** Roughly a man's voice, and flat: this is a chip, not a person. */
@@ -114,7 +180,13 @@ export class Speech {
     if (!lines || !this.engine.ctx) return 0;
     const line = lines[this.pick % lines.length];
     this.pick++;
-    return this.speak(line, at);
+    return this.line(line, at);
+  }
+
+  /** Says any sentence built from the vocabulary. */
+  line(text, at = 0) {
+    const sounds = phrase(text);
+    return sounds.length ? this.speak(sounds, at) : 0;
   }
 
   /** Schedules one phoneme sequence. */
