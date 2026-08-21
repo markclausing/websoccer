@@ -141,14 +141,35 @@ async function main() {
     await dt.shot('gameplay.png');
     await dt.key('KeyW', 'w', false);
 
-    // 3. A phone, held sideways, with the on-screen controls.
+    // 3. The moment you earn a place on the board: win the match, then type two
+    //    of the three letters so the picker is caught mid-signature.
+    //
+    //    Nine nil on purpose. The page merges in whatever board the server it is
+    //    talking to already holds, and a modest win against a board with ten
+    //    rows on it does not qualify - which is exactly how this shot came out
+    //    empty the first time.
+    await dt.evaluate(`(() => {
+      const s = window.__game.state;
+      s.score[0] = 9;
+      s.score[1] = 0;
+      s.phase = 'fulltime';
+    })()`);
+    await sleep(400);
+    for (const letter of ['M', 'J']) {
+      await dt.key(`Key${letter}`, letter, true);
+      await dt.key(`Key${letter}`, letter, false);
+      await sleep(150);
+    }
+    await sleep(300);
+    await dt.shot('highscore.png');
+
+    // 4. A phone, held sideways, with the on-screen controls.
     await dt.send('Emulation.setDeviceMetricsOverride', {
       width: 844, height: 390, deviceScaleFactor: 2, mobile: true,
     });
     await dt.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     await dt.send('Page.navigate', { url: URL_UNDER_TEST });
     await sleep(2000);
-    await dt.shot('mobile-menu.png');
     await dt.evaluate("document.getElementById('start').click()");
     await sleep(7000);
     await dt.shot('mobile.png');
