@@ -38,7 +38,10 @@ sfx.talking = globalThis.localStorage?.getItem('websoccer.commentary') !== 'off'
 let soundOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';
 audio.enabled = soundOn;
 
-const bindings = loadBindings();
+// Named now that a second game shares this domain. The old key is kept, so
+// nobody's keys are forgotten.
+const KEYS_STORAGE = 'websoccer.bindings';
+const bindings = loadBindings(KEYS_STORAGE);
 const devices = new InputDevices(bindings);
 devices.attach();
 
@@ -472,7 +475,7 @@ function applyKey(code) {
   bindings[slot][action] = code;
   devices.setBindings(bindings);
   devices.down.clear(); // the key we just captured never gets a keyup we care about
-  saveBindings(bindings);
+  saveBindings(bindings, KEYS_STORAGE);
   renderBindings();
 }
 
@@ -496,7 +499,7 @@ for (const select of document.querySelectorAll('[data-preset]')) {
     if (!preset) return;
     bindings[Number(select.dataset.preset)] = { ...preset.bindings };
     devices.setBindings(bindings);
-    saveBindings(bindings);
+    saveBindings(bindings, KEYS_STORAGE);
     renderBindings();
   });
 }

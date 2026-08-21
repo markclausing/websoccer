@@ -58,12 +58,20 @@ export function defaultBindings() {
 // bound, so the page never scrolls or re-clicks a button mid-match.
 const ALWAYS_SWALLOW = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter'];
 
-const STORAGE_KEY = 'websoccer.bindings';
+/**
+ * Where the key bindings live, unless the game says otherwise.
+ *
+ * It has to be said otherwise when two games share an origin, which websoccer
+ * and webtennis do - both on the same github.io domain. One key would mean
+ * rebinding in one game silently rebinding the other, and the two do not even
+ * mean the same things by the same buttons.
+ */
+const STORAGE_KEY = 'bindings.v1';
 
-export function loadBindings() {
+export function loadBindings(key = STORAGE_KEY) {
   const fallback = defaultBindings();
   try {
-    const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
+    const raw = globalThis.localStorage?.getItem(key);
     if (!raw) return fallback;
     const saved = JSON.parse(raw);
     if (!Array.isArray(saved)) return fallback;
@@ -81,9 +89,9 @@ export function loadBindings() {
   }
 }
 
-export function saveBindings(bindings) {
+export function saveBindings(bindings, key = STORAGE_KEY) {
   try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(bindings));
+    globalThis.localStorage?.setItem(key, JSON.stringify(bindings));
   } catch { /* private mode, storage full: not worth interrupting a game for */ }
 }
 
