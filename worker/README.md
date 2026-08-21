@@ -33,6 +33,7 @@ matches find each other, and every browser sees the same high score table.
   which is what `npm start` runs locally.
 - `GET /highscores` — the board.
 - `POST /highscores/reset` — empties the board, if you have set a key (below).
+- A new entry is posted to Discord, if you have set a webhook (below).
 - `POST /highscores` — send yours, get everyone's back merged. The merge is the
   same function the browser runs (`src/highscores.js`), so the two cannot
   disagree about what a board is, and results that are not real results - a
@@ -43,6 +44,32 @@ two players' sockets together, and one object for the whole game is plenty here.
 The migration in `wrangler.toml` uses `new_sqlite_classes`, which is the storage
 class Durable Objects offer on the free plan; check Cloudflare's current limits
 if you expect a crowd.
+
+## Telling Discord about it
+
+Every result that lands on the board can be posted to a Discord channel. It uses
+a webhook rather than a bot: no gateway connection to keep alive, no token to
+rotate, nothing else to host - and the channel still shows whatever name and
+avatar you gave the webhook, so it reads as your own app.
+
+In Discord: **Channel settings → Integrations → Webhooks → New webhook**, give it
+a name and a picture, and copy the URL. Then:
+
+```sh
+npx wrangler secret put DISCORD_WEBHOOK    # paste the URL
+```
+
+That is all. Posts look like:
+
+> 🏆 **MJC** beat **HARD** 5-1 — top of the table
+
+The Worker works out what to announce from the board itself, not from what the
+browser sent, so a result that missed the top ten stays quiet and the same score
+arriving from a second device is not announced twice. Discord being slow or down
+never costs anybody their score: the message is sent alongside the answer, not
+before it, and a failure is dropped.
+
+Set no webhook and nothing is sent, which is the default.
 
 ## Sweeping the board
 

@@ -277,6 +277,12 @@ everyone's and sends the lot back. Merging is done with the same function on
 both sides, and every row carries an id, so a score that has been round three
 devices is still one row, and it does not matter who syncs first.
 
+New entries can be announced in a Discord channel - a webhook rather than a bot,
+so there is nothing extra to host and no token to keep alive. One secret on the
+relay switches it on; see `worker/README.md`. The server decides what to
+announce from the board itself, so results that missed the top ten stay quiet and
+a score syncing from a second device is not announced twice.
+
 Nothing stops someone posting a result they did not earn; a board with no
 accounts on it cannot tell. It refuses defeats and nonsense, caps each table at
 ten, and beyond that it trusts the people you gave the address to.

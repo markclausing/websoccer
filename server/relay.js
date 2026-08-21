@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeFrame, createParser, encodeFrame, handshake } from './ws.js';
 import { merge } from '../src/highscores.js';
+import { announcement, newRows } from '../worker/announce.js';
 
 // One process does three things: serve the static files, pass inputs between two
 // players, and keep the shared high score board. It still knows nothing about
@@ -52,6 +53,21 @@ function writeBoard(board) {
 
 let board = readBoard();
 
+/**
+ * Tells Discord about a new entry, if a webhook is configured. Never awaited:
+ * Discord being down must not make posting a score fail, and the same words are
+ * used by the Worker so the two servers say the same thing.
+ */
+function shout(rows) {
+  const url = process.env.DISCORD_WEBHOOK;
+  if (!url || !rows.length) return;
+  fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(announcement(rows)),
+  }).catch(() => log('could not reach the Discord webhook'));
+}
+
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
@@ -98,10 +114,13 @@ function handleScores(req, res) {
     }
     // merge() is the same function the browser runs, and it throws nothing away
     // quietly: rows that are not a real result never survive it.
-    const before = JSON.stringify(board);
-    board = merge(board, sent?.board || {});
-    const changed = JSON.stringify(board) !== before;
-    if (changed) writeBoard(board);
+    const was = board;
+    const merged = merge(board, sent?.board || {});
+    if (JSON.stringify(merged) !== JSON.stringify(was)) {
+      board = merged;
+      writeBoard(board);
+      shout(newRows(was, board));
+    }
     sendJson(res, 200, { board });
   });
 }

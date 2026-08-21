@@ -5,6 +5,7 @@
 // machines simulated the exact same match. That is what lockstep stands or
 // falls on.
 
+import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +17,7 @@ import { OnlineTransport } from '../src/net/transport.js';
 import { BTN } from '../src/constants.js';
 
 const PORT = 5199;
+const HOOK_PORT = 5198;
 const TICKS = 60 * 100; // 100 seconds of match
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -52,8 +54,29 @@ async function main() {
   // A board of its own, so a test run never touches whatever scores are lying
   // next to a real server.
   const scoresFile = join(tmpdir(), `websoccer-scores-${process.pid}.json`);
+
+  // Discord, for the length of this test: a server that writes down what it was
+  // told. The relay should post here the moment a score lands.
+  const announced = [];
+  const hook = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      try {
+        announced.push(JSON.parse(body));
+      } catch { /* not our message */ }
+      res.writeHead(204).end();
+    });
+  });
+  await new Promise((r) => hook.listen(HOOK_PORT, r));
   const server = spawn(process.execPath, ['server/relay.js'], {
-    env: { ...process.env, PORT: String(PORT), QUIET: '1', SCORES_FILE: scoresFile },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      QUIET: '1',
+      SCORES_FILE: scoresFile,
+      DISCORD_WEBHOOK: `http://localhost:${HOOK_PORT}/hook`,
+    },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   server.stdout.resume();
@@ -191,6 +214,19 @@ async function main() {
       console.log('OK: the server refuses defeats and nonsense rows');
     }
 
+    // The new entries should have been announced, once each.
+    await waitFor(() => announced.length >= 2, 'the relay never posted to the webhook', 3000);
+    const said = announced.map((a) => a.content).join(' ');
+    if (!/AAA/.test(said) || !/BBB/.test(said)) {
+      console.error(`FAIL: the announcements do not mention both players: ${said}`);
+      failed = true;
+    } else if (announced.length !== 2) {
+      console.error(`FAIL: ${announced.length} posts for 2 new scores`);
+      failed = true;
+    } else {
+      console.log('OK: a new entry is posted to the Discord webhook, once each');
+    }
+
     // And it survives a restart, because the board is a file.
     const stored = await (await fetch(boardUrl)).json();
     if (stored.board.normal.length !== 2) {
@@ -203,6 +239,7 @@ async function main() {
     process.exitCode = failed ? 1 : 0;
   } finally {
     server.kill();
+    hook.close();
     try {
       rmSync(join(tmpdir(), `websoccer-scores-${process.pid}.json`), { force: true });
     } catch { /* nothing to clean up */ }

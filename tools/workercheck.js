@@ -84,8 +84,22 @@ function check(ok, message) {
   }
 }
 
+// Discord, as far as this test is concerned: a list of what was posted.
+const posted = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  if (String(url).includes('discord')) {
+    posted.push(JSON.parse(init.body));
+    return new realResponse('{}', { status: 204 });
+  }
+  return realFetch(url, init);
+};
+
 const state = fakeState();
-const arena = new Arena(state, { ADMIN_KEY: 'letmein' });
+const arena = new Arena(state, {
+  ADMIN_KEY: 'letmein',
+  DISCORD_WEBHOOK: 'https://discord.example/api/webhooks/1/abc',
+});
 
 // Two players, each with their own socket, exactly as the Worker would make them.
 const host = { socket: new FakeSocket('host'), room: null, role: null };
@@ -153,6 +167,38 @@ check(JSON.stringify(state.store.get('board')) === JSON.stringify(read.board),
 
 const again = await (await arena.scores(request('POST', '/highscores', { board: laptop }))).json();
 check(again.board.normal.length === 2, 'posting the same table twice does not duplicate rows');
+
+// --- Telling Discord ---------------------------------------------------------
+
+check(posted.length === 2, `a post per result that landed (${posted.length})`);
+check(/BBB/.test(posted[1]?.content) && /6-1/.test(posted[1].content)
+  && /top of the table/.test(posted[1].content),
+  `the message says who, what and where: ${JSON.stringify(posted[1]?.content)}`);
+check(posted.every((p) => p.allowed_mentions?.parse?.length === 0),
+  'the post cannot ping anybody');
+
+const quiet = posted.length;
+await arena.scores(request('POST', '/highscores', { board: laptop }));
+check(posted.length === quiet, 'the same result arriving again is not announced');
+
+await arena.scores(request('POST', '/highscores', {
+  board: { normal: [entry('lost', 'QQQ', 0, 5, 4000)], easy: [], hard: [] },
+}));
+check(posted.length === quiet, 'a result that does not make the board is not announced');
+
+// A silent Worker, for anyone who has not set a webhook.
+const mute = new Arena(fakeState(), {});
+await mute.scores(request('POST', '/highscores', { board: phone }));
+check(posted.length === quiet, 'with no webhook configured nothing is sent');
+
+// And Discord falling over must not cost anybody their score.
+globalThis.fetch = async () => { throw new Error('discord is down'); };
+const survives = await arena.scores(request('POST', '/highscores', {
+  board: { hard: [entry('h1', 'ZZZ', 2, 0, 5000)], easy: [], normal: [] },
+}));
+check((await survives.json()).board.hard.length === 1,
+  'a score still lands when Discord is unreachable');
+globalThis.fetch = realFetch;
 
 // A body that is not a board at all.
 const huge = {

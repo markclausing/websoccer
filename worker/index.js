@@ -14,6 +14,7 @@
  */
 
 import { merge } from '../src/highscores.js';
+import { announcement, newRows } from './announce.js';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
 const MAX_BODY = 64 * 1024;
@@ -179,6 +180,26 @@ export class Arena {
     return json({ board: this.board, cleared: true });
   }
 
+  /**
+   * Tells Discord about it, if a webhook has been set.
+   *
+   * Deliberately not awaited: Discord being slow, rate limiting us or simply
+   * down must not make posting a score fail. The board is the product here; the
+   * announcement is a nicety.
+   */
+  shout(rows) {
+    const url = this.env?.DISCORD_WEBHOOK;
+    if (!url || !rows.length) return;
+    const post = fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(announcement(rows)),
+    }).catch(() => { /* the score is safe; the message was not */ });
+    // Keeps the object alive long enough to finish the request after the
+    // player's browser already has its answer.
+    this.state?.waitUntil?.(post);
+  }
+
   // --- The shared board ------------------------------------------------------
 
   async load() {
@@ -210,6 +231,10 @@ export class Arena {
     if (JSON.stringify(after) !== JSON.stringify(before)) {
       this.board = after;
       await this.state.storage.put('board', after);
+      // Anything that actually landed gets announced. Worked out from the board
+      // rather than from what was sent, so a row that did not make the top ten
+      // stays quiet and a row arriving for the second time is not news.
+      this.shout(newRows(before, after));
     }
     return json({ board: after });
   }
