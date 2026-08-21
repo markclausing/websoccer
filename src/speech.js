@@ -183,12 +183,58 @@ const BANDWIDTH = [60, 90, 150, 220];
 /** A fourth resonance, fixed. Voices have one; it is what stops it sounding thin. */
 const FORMANT_4 = 3300;
 
+/**
+ * A glottal pulse, near enough.
+ *
+ * The vocal folds themselves roll off at about 12 dB an octave, but the sound
+ * leaving the lips is closer to the derivative of that, which puts 6 dB back -
+ * which is why a plain sawtooth works at all. Building the source at 1/n squared
+ * and stopping there was tried, and measurably starved the second formant, the
+ * one that carries most of the vowel: the spectrum showed the low harmonics and
+ * nothing where the vowel lives.
+ *
+ * So: 1/n, the sawtooth slope, with the very top harmonics faded out. That last
+ * part is the buzz, and it is the part a throat does not have.
+ */
+function glottalWave(ctx, harmonics = 40) {
+  const real = new Float32Array(harmonics + 1);
+  const imag = new Float32Array(harmonics + 1);
+  for (let n = 1; n <= harmonics; n++) imag[n] = (1 / n) * Math.exp(-n / 18);
+  return ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+}
+
+/**
+ * How far the pitch wanders, in hertz. No throat holds a note: a voice that is
+ * perfectly steady between two accents is the last thing that still sounds
+ * synthetic once the contour is right.
+ */
+const FLUTTER = 3.2;
+const VIBRATO = 0.9;
+
+/** The same idea applied to loudness, which also never holds still. */
+const SHIMMER = 0.08;
+
+/**
+ * How fast he talks, and how much shorter the unstressed syllables are.
+ *
+ * Evenly spaced syllables are as mechanical as a flat pitch. English throws away
+ * most of the length of anything it is not stressing, and keeping every vowel
+ * the same length is a good part of what made this sound counted out rather than
+ * spoken.
+ */
+const RATE = 0.88;
+const UNSTRESSED = 0.82;
+
 export class Speech {
   constructor(engine) {
     this.engine = engine;
     // Narrow formants pass less energy than wide ones, so this is louder than
     // it looks: measured, a line peaks at about a quarter of full scale.
-    this.level = 0.8;
+    // Measured against the rest of the mix rather than guessed: at this level a
+    // spoken line carries about five times the crowd's energy, which is what it
+    // takes to be heard over a goal, and still peaks a long way short of
+    // clipping.
+    this.level = 1.4;
     this.pick = 0;
   }
 
@@ -233,14 +279,33 @@ export class Speech {
 
     // --- The voice ----------------------------------------------------------
     const voice = ctx.createOscillator();
-    voice.type = 'sawtooth';
+    if (!this.wave) this.wave = glottalWave(ctx);
+    voice.setPeriodicWave(this.wave);
     voice.frequency.setValueAtTime(PITCH * RISE, start);
+
+    // Wander: slow noise into the pitch, so no two periods are the same length.
+    const flutter = ctx.createBufferSource();
+    flutter.buffer = this.engine.longNoise;
+    flutter.loop = true;
+    const slow = ctx.createBiquadFilter();
+    slow.type = 'lowpass';
+    slow.frequency.value = 18;
+    const flutterDepth = ctx.createGain();
+    flutterDepth.gain.value = FLUTTER * 40; // the filter takes most of this away
+    flutter.connect(slow).connect(flutterDepth).connect(voice.frequency);
+
+    // And the small regular sway a held vowel has.
+    const vibrato = ctx.createOscillator();
+    vibrato.frequency.value = 5.2;
+    const vibratoDepth = ctx.createGain();
+    vibratoDepth.gain.value = VIBRATO;
+    vibrato.connect(vibratoDepth).connect(voice.frequency);
 
     // A gentle lowpass on the source, which is roughly what a throat does to a
     // glottal pulse: without it the sawtooth's top end is a buzz.
     const soften = ctx.createBiquadFilter();
     soften.type = 'lowpass';
-    soften.frequency.value = 2600;
+    soften.frequency.value = 3200;
     soften.Q.value = 0.7;
 
     // Breath: a little noise riding along with the voice.
@@ -254,6 +319,17 @@ export class Speech {
     voiceGain.gain.setValueAtTime(0, start);
     voice.connect(soften).connect(voiceGain);
     breath.connect(breathLevel).connect(voiceGain);
+
+    // Loudness wanders as well as pitch. Same slow noise, a different parameter.
+    const shimmer = ctx.createBufferSource();
+    shimmer.buffer = this.engine.longNoise;
+    shimmer.loop = true;
+    const shimmerSlow = ctx.createBiquadFilter();
+    shimmerSlow.type = 'lowpass';
+    shimmerSlow.frequency.value = 12;
+    const shimmerDepth = ctx.createGain();
+    shimmerDepth.gain.value = SHIMMER * 40;
+    shimmer.connect(shimmerSlow).connect(shimmerDepth).connect(voiceGain.gain);
 
     // Four resonances. Where the first three sit is the vowel; the fourth is
     // fixed and only there to stop the voice sounding thin.
@@ -290,14 +366,20 @@ export class Speech {
     };
 
     let t = start;
-    let nodes = 9;
+    let nodes = 15;
     let sinceWordStart = 0;
     let carriedLocus = null;
+    const lastVowel = phonemes.reduce((last, name, k) => (PHONEMES[name]?.f && !PHONEMES[name]?.stop ? k : last), -1);
     for (let i = 0; i < phonemes.length; i++) {
       const ph = PHONEMES[phonemes[i]];
       if (!ph) continue;
       const level = (ph.level ?? 1) * this.level;
       const through = (t - start) / Math.max(total, 0.001);
+      // Speech slows into a full stop, and hurries over anything unstressed.
+      const stressed = sinceWordStart === 0;
+      const dur = ph.dur * RATE
+        * (i === lastVowel ? 1.4 : 1)
+        * (ph.f && !stressed && i !== lastVowel ? UNSTRESSED : 1);
 
       // Pitch: down across the phrase, up on the first vowel of a word, and
       // never quite still.
@@ -305,14 +387,14 @@ export class Speech {
         const accent = sinceWordStart === 0 ? RISE : 1;
         const wobble = 1 + WOBBLE * Math.sin(i * 2.4);
         const target = PITCH * (1 - (1 - DECLINE) * through) * accent * wobble;
-        voice.frequency.linearRampToValueAtTime(target, t + ph.dur * 0.6);
+        voice.frequency.linearRampToValueAtTime(target, t + dur * 0.6);
         sinceWordStart++;
       }
 
       if (ph.silence) {
         voiceGain.gain.setTargetAtTime(0, t, 0.012);
         hissGain.gain.setTargetAtTime(0, t, 0.012);
-        t += ph.dur;
+        t += dur;
         sinceWordStart = 0;
         continue;
       }
@@ -324,12 +406,12 @@ export class Speech {
         hissBand.frequency.setValueAtTime(ph.burst, t);
         hissBand.Q.setValueAtTime(ph.q || 2, t);
         hissGain.gain.setValueAtTime(0.6 * this.level, t);
-        hissGain.gain.exponentialRampToValueAtTime(0.0001, t + ph.dur);
+        hissGain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
         if (ph.locus) setFormants(ph.locus, t, 0);
         if (ph.voiced) voiceGain.gain.setValueAtTime(0.2 * this.level, t);
         // The vowel after this one starts from the locus and slides away.
         carriedLocus = ph.locus || null;
-        t += ph.dur;
+        t += dur;
         nodes++;
         continue;
       }
@@ -341,13 +423,13 @@ export class Speech {
         setFormants(ph.f, t, glide);
         if (ph.to) {
           for (let k = 0; k < 3; k++) {
-            bands[k].frequency.linearRampToValueAtTime(ph.to[k], t + ph.dur);
-            bands[k].Q.setValueAtTime(ph.to[k] / BANDWIDTH[k], t + ph.dur);
+            bands[k].frequency.linearRampToValueAtTime(ph.to[k], t + dur);
+            bands[k].Q.setValueAtTime(ph.to[k] / BANDWIDTH[k], t + dur);
           }
         }
         // Vowels swell and fall away instead of sitting at one level.
         voiceGain.gain.setTargetAtTime(level, t, 0.02);
-        voiceGain.gain.setTargetAtTime(level * 0.8, t + ph.dur * 0.6, 0.05);
+        voiceGain.gain.setTargetAtTime(level * 0.8, t + dur * 0.6, 0.05);
         carriedLocus = null;
       } else {
         voiceGain.gain.setTargetAtTime(0, t, 0.015);
@@ -361,7 +443,7 @@ export class Speech {
         hissGain.gain.setTargetAtTime(0, t, 0.015);
       }
 
-      t += ph.dur;
+      t += dur;
       nodes++;
     }
 
@@ -371,6 +453,12 @@ export class Speech {
     hissGain.gain.setTargetAtTime(0, t, 0.03);
     voice.start(start);
     voice.stop(t + 0.3);
+    vibrato.start(start);
+    vibrato.stop(t + 0.3);
+    flutter.start(start);
+    flutter.stop(t + 0.3);
+    shimmer.start(start);
+    shimmer.stop(t + 0.3);
     breath.start(start);
     breath.stop(t + 0.3);
     hiss.start(start);
