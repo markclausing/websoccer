@@ -169,7 +169,7 @@ export const LINES = {
 const PITCH = 118;
 const RISE = 1.06; // on the first vowel of a word
 const DECLINE = 0.82; // where the phrase ends up by the end
-const WOBBLE = 0.02;
+const WOBBLE = 0.05;
 
 /**
  * Formant bandwidths in hertz rather than a fixed Q. A filter's Q is its centre
@@ -208,11 +208,11 @@ function glottalWave(ctx, harmonics = 40) {
  * perfectly steady between two accents is the last thing that still sounds
  * synthetic once the contour is right.
  */
-const FLUTTER = 3.2;
-const VIBRATO = 0.9;
+const FLUTTER = 5;
+const VIBRATO = 2.6;
 
 /** The same idea applied to loudness, which also never holds still. */
-const SHIMMER = 0.08;
+const SHIMMER = 0.13;
 
 /**
  * How fast he talks, and how much shorter the unstressed syllables are.
@@ -222,8 +222,8 @@ const SHIMMER = 0.08;
  * the same length is a good part of what made this sound counted out rather than
  * spoken.
  */
-const RATE = 0.88;
-const UNSTRESSED = 0.82;
+const RATE = 1.18;
+const UNSTRESSED = 0.86;
 
 export class Speech {
   constructor(engine) {
