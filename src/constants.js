@@ -238,4 +238,48 @@ export const KEEPER_KIT = [
   { shirt: '#3ad07a', shorts: '#3a3a3a', trim: '#222222', skin: '#8d5524', hair: '#221109' },
 ];
 
+// The skin in a kit above is only the fallback. A squad is eleven different
+// people: giving every player in a team the same tone made the blue side look
+// uniformly light and the red side uniformly dark, which is not what a team
+// looks like. Hair travels with the skin, since the pairing is what reads as a
+// person rather than a recoloured copy.
+//
+// The darkest tone is not as dark as it could be, on purpose: the face is three
+// pixels tall from above and sits directly under the hair, so at the bottom of
+// the range the head turned into one dark blob and the player stopped having a
+// face at all. Every pair here keeps the hair clearly darker than the skin.
+export const SKIN_TONES = [
+  { skin: '#f2d0ab', hair: '#8a5a2b' },
+  { skin: '#e8b98a', hair: '#3a2415' },
+  { skin: '#c68642', hair: '#2a1a10' },
+  { skin: '#a3663a', hair: '#1d1109' },
+  { skin: '#8d5524', hair: '#221109' },
+  { skin: '#6f4420', hair: '#1a0e06' },
+];
+
+/**
+ * The kit one player wears, tone and all.
+ *
+ * The tone is picked by a stride through the palette rather than at random: the
+ * simulation must not be touched for something this cosmetic, and a player has
+ * to keep the same face from one frame to the next. Five and six share no
+ * factors, so eleven players walk the whole palette instead of landing on three
+ * of it, and the teams start at different points so the two sides are not the
+ * same eleven faces twice.
+ *
+ * `id` is the sprite cache key: players sharing a kit and a tone share sprites,
+ * so this costs a dozen little canvases, not twenty-two sets of them.
+ */
+export function kitFor(teamIdx, playerIdx) {
+  const base = playerIdx === 0 ? KEEPER_KIT[teamIdx] : TEAM_PRESETS[teamIdx];
+  const toneIdx = (playerIdx * 5 + teamIdx * 3) % SKIN_TONES.length;
+  const tone = SKIN_TONES[toneIdx];
+  return {
+    ...base,
+    skin: tone.skin,
+    hair: tone.hair,
+    id: `${teamIdx}${playerIdx === 0 ? 'gk' : ''}-${toneIdx}`,
+  };
+}
+
 // Line-ups live in game/formations.js: they are a choice now, not a constant.

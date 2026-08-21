@@ -1,5 +1,5 @@
 import {
-  BALL_R, CHARGE_MAX, FIELD, FIELD_H, KEEPER_KIT, PLAYER_R, TEAM_PRESETS,
+  BALL_R, CHARGE_MAX, FIELD, FIELD_H, PLAYER_R, TEAM_PRESETS, kitFor,
   WORLD_H, WORLD_W,
 } from '../constants.js';
 import { clamp } from '../util.js';
@@ -102,9 +102,9 @@ export class Renderer {
 
   drawPlayer(ctx, state, t, i, p) {
     const team = state.teams[t];
-    const kit = i === 0 ? KEEPER_KIT[t] : TEAM_PRESETS[t];
+    const kit = kitFor(t, i);
     const isControlled = team.human && team.controlled === i;
-    const sprites = kitSprites(kit, ZOOM, `${t}-${i === 0 ? 'gk' : 'out'}`);
+    const sprites = kitSprites(kit, ZOOM, kit.id);
 
     let view = facing(p.dirX, p.dirY);
     if (p.slide > 0 || p.down > 0) {

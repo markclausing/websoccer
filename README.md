@@ -151,6 +151,15 @@ screen pixels. Drawing them in world space would put their edges on fractions of
 a pixel and the resampler would soften away the one thing that makes them pixel
 art. The same figure walks around the picture behind the menu.
 
+Each player gets his own skin tone, taken from a palette of six that the eleven
+walk through in a stride, hair travelling with it. One tone per team is what it
+used to be, and it made the blue side uniformly light and the red side uniformly
+dark, which is not what a team looks like. The two sides start at different
+points in the palette, so they are not the same eleven faces in different shirts.
+The darkest tone is deliberately not the darkest one could go: the face is three
+pixels tall seen from above and sits right under the hair, so at the very bottom
+of the range a head turned into a single dark blob.
+
 ## The title screen
 
 The picture behind the menu is drawn, not loaded: a night match seen from the top

@@ -9,6 +9,7 @@
  * seats every time instead of shimmering on each redraw.
  */
 
+import { SKIN_TONES } from '../constants.js';
 import { TINY_H, TINY_W, kitSprites } from './sprites.js';
 
 const ART_W = 240;
@@ -29,9 +30,16 @@ const LINE = '#e8f2e8';
 const SHIRTS = ['#d33b3b', '#2f6fd0', '#f2d43c', '#e8e8e8', '#3ad07a', '#c06de0'];
 
 // The same kits the teams wear on the pitch, so the figures below belong here.
-const HOME = { shirt: '#2f6fd0', shorts: '#1b3f7a', skin: '#e8b98a', hair: '#3a2415' };
-const AWAY = { shirt: '#d33b3b', shorts: '#7a1b1b', skin: '#8d5524', hair: '#221109' };
-const KEEPER = { shirt: '#f2d43c', shorts: '#3a3a3a', skin: '#e8b98a', hair: '#3a2415' };
+// Skin is left out on purpose: it is handed to each figure separately, so the
+// crowd is not watching two teams of identical men.
+const HOME = { shirt: '#2f6fd0', shorts: '#1b3f7a' };
+const AWAY = { shirt: '#d33b3b', shorts: '#7a1b1b' };
+const KEEPER = { shirt: '#f2d43c', shorts: '#3a3a3a' };
+
+/** One player's sprites, in a kit and a skin tone. */
+function figure(kit, tone, id) {
+  return kitSprites({ ...kit, ...SKIN_TONES[tone] }, 1, `${id}-${tone}`);
+}
 
 /** Same seed, same crowd, every time. */
 function rng(seed) {
@@ -198,16 +206,15 @@ function drawScene(g) {
 
   // And the players. Small ones at the far end where the pitch is narrow, full
   // sized ones near the bottom - the same sprite the match itself draws.
-  const home = kitSprites(HOME, 1, 'art-home');
-  const away = kitSprites(AWAY, 1, 'art-away');
-  const keeper = kitSprites(KEEPER, 1, 'art-gk');
+  const home = (tone) => figure(HOME, tone, 'art-home');
+  const away = (tone) => figure(AWAY, tone, 'art-away');
 
   const tiny = [
-    [keeper, ART_W / 2 + 2, 97],
-    [away, ART_W / 2 - 30, 104],
-    [home, ART_W / 2 + 34, 107],
-    [home, ART_W / 2 - 12, 112],
-    [away, ART_W / 2 + 16, 116],
+    [figure(KEEPER, 1, 'art-gk'), ART_W / 2 + 2, 97],
+    [away(4), ART_W / 2 - 30, 104],
+    [home(0), ART_W / 2 + 34, 107],
+    [home(3), ART_W / 2 - 12, 112],
+    [away(1), ART_W / 2 + 16, 116],
   ];
   for (const [kit, x, y] of tiny) {
     g.drawImage(kit.tiny, Math.round(x - TINY_W / 2), Math.round(y - TINY_H));
@@ -218,11 +225,11 @@ function drawScene(g) {
   // Mixed frames, so they look like a team in motion rather than a row of
   // statues: some mid-stride, some with their feet together.
   const near = [
-    [away, 'right1', 38, 158],
-    [home, 'up0', 62, 152],
-    [home, 'down1', ART_W - 62, 156],
-    [away, 'left0', ART_W - 34, 150],
-    [home, 'right0', ART_W / 2 - 24, ART_H - 4],
+    [away(0), 'right1', 38, 158],
+    [home(5), 'up0', 62, 152],
+    [home(2), 'down1', ART_W - 62, 156],
+    [away(3), 'left0', ART_W - 34, 150],
+    [home(4), 'right0', ART_W / 2 - 24, ART_H - 4],
   ];
   for (const [kit, view, x, y] of near) {
     const sprite = kit[view];

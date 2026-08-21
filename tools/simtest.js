@@ -8,7 +8,9 @@ import {
 import { step } from '../src/game/sim.js';
 import { kickBall } from '../src/game/kick.js';
 import { assistedAim } from '../src/game/aim.js';
-import { BTN, FIELD, GOAL_W, TICK_RATE, WORLD_H, WORLD_W } from '../src/constants.js';
+import {
+  BTN, FIELD, GOAL_W, SKIN_TONES, TICK_RATE, WORLD_H, WORLD_W, kitFor,
+} from '../src/constants.js';
 import { norm } from '../src/util.js';
 import { PRESETS, lineupFrom, roleFor, shapeOf } from '../src/game/formations.js';
 
@@ -523,3 +525,28 @@ if (roleFor(0.9, 5) !== 'fw' || roleFor(0.62, 5) !== 'am' || roleFor(0.2, 5) !==
   process.exit(1);
 }
 console.log('OK: a corrupt line-up is repaired, and roles follow where a player stands');
+
+// --- Eleven people, not one man printed eleven times -------------------------
+
+console.log('');
+const squads = [0, 1].map((t) => Array.from({ length: 11 }, (_, i) => kitFor(t, i)));
+for (let t = 0; t < 2; t++) {
+  const tones = new Set(squads[t].map((k) => k.skin));
+  if (tones.size < SKIN_TONES.length) {
+    console.error(`FAIL: team ${t} uses only ${tones.size} of the ${SKIN_TONES.length} skin tones`);
+    process.exit(1);
+  }
+}
+// The two sides must not be the same faces in different shirts.
+const sameSpot = squads[0].filter((k, i) => k.skin === squads[1][i].skin).length;
+if (sameSpot > 3) {
+  console.error(`FAIL: the two teams line up with the same tone in ${sameSpot} of 11 places`);
+  process.exit(1);
+}
+if (squads[0][0].shirt === squads[0][1].shirt) {
+  console.error('FAIL: the keeper is wearing the outfield shirt');
+  process.exit(1);
+}
+console.log(`Skin tones: every team uses all ${SKIN_TONES.length}, and the two line up differently `
+  + `(${sameSpot} of 11 shared)`);
+console.log('OK: a squad is eleven different people, and the keeper still stands out');
