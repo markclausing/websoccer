@@ -629,3 +629,46 @@ if (rebuilt.table('hard').length !== 0) {
 console.log('');
 console.log('High scores: ten per difficulty, defeats refused, merging is order independent');
 console.log('OK: the table survives being merged, repeated and corrupted');
+
+// --- Which server the page talks to ------------------------------------------
+//
+// This is small and it has already gone wrong once: a stub location without a
+// hostname made a local test reach out to the live Worker, and the online test
+// paired with nobody. Cheap to check, so it is checked.
+
+const config = await import('../src/config.js');
+
+const where = (l) => [config.relayFor(l), config.boardFor(l)];
+const localPage = { protocol: 'http:', host: 'localhost:5173', hostname: 'localhost', search: '' };
+const [localRelay, localBoard] = where(localPage);
+if (localRelay !== 'ws://localhost:5173' || localBoard !== 'http://localhost:5173/highscores') {
+  console.error(`FAIL: a page served locally should talk to itself, not ${localRelay}`);
+  process.exit(1);
+}
+// The same, from a stub that only knows host - hostname must not be required.
+if (where({ protocol: 'http:', host: 'localhost:5173', search: '' })[0] !== 'ws://localhost:5173') {
+  console.error('FAIL: a location without hostname was treated as remote');
+  process.exit(1);
+}
+const hosted = {
+  protocol: 'https:', host: 'example.github.io', hostname: 'example.github.io', search: '',
+};
+const [hostedRelay, hostedBoard] = where(hosted);
+if (config.DEFAULT_RELAY) {
+  if (hostedRelay !== config.DEFAULT_RELAY || !hostedBoard?.startsWith('https://')) {
+    console.error(`FAIL: a hosted page should use the configured relay, got ${hostedRelay}`);
+    process.exit(1);
+  }
+} else if (hostedBoard !== null) {
+  console.error('FAIL: with no relay configured a hosted page must not ask anywhere for a board');
+  process.exit(1);
+}
+// An address in the query string beats everything, which is how you test one.
+const overridden = { ...hosted, search: '?relay=wss://somewhere.else' };
+if (where(overridden)[0] !== 'wss://somewhere.else') {
+  console.error('FAIL: ?relay= in the address was ignored');
+  process.exit(1);
+}
+console.log('');
+console.log(`Relay: local pages talk to themselves, hosted pages to ${config.DEFAULT_RELAY || '(nothing configured)'}`);
+console.log('OK: the page asks the right server, and ?relay= always wins');

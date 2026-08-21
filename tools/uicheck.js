@@ -178,7 +178,9 @@ Object.defineProperty(global, 'navigator', {
   configurable: true,
 });
 Object.defineProperty(global, 'location', {
-  value: { protocol: 'http:', host: `localhost:${PORT}` },
+  // hostname as well as host: a real page has both, and config.js uses it to
+  // decide whether this page is being served locally.
+  value: { protocol: 'http:', host: `localhost:${PORT}`, hostname: 'localhost', search: '' },
   configurable: true,
 });
 

@@ -13,7 +13,7 @@
  *
  *   export const DEFAULT_RELAY = 'wss://websoccer.your-name.workers.dev';
  */
-export const DEFAULT_RELAY = '';
+export const DEFAULT_RELAY = 'wss://websoccer.vibecoach.workers.dev';
 
 /**
  * Which relay this page should talk to. A `?relay=` in the address always wins,
@@ -24,9 +24,18 @@ export const DEFAULT_RELAY = '';
 export function relayFor(location) {
   const override = new URLSearchParams(location.search || '').get('relay');
   if (override) return override;
-  const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-  if (!local && DEFAULT_RELAY) return DEFAULT_RELAY;
+  if (!isLocal(location) && DEFAULT_RELAY) return DEFAULT_RELAY;
   return `${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}`;
+}
+
+/**
+ * Are we being served by something on this machine? Read from the host rather
+ * than only from hostname: they should agree, and quietly deciding a page is
+ * remote because one field was missing would send a local test to the internet.
+ */
+function isLocal(location) {
+  const name = location.hostname || String(location.host || '').split(':')[0];
+  return /^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(name);
 }
 
 /**
@@ -37,10 +46,10 @@ export function boardFor(location) {
   const relay = relayFor(location);
   if (!relay) return null;
   const url = relay.replace(/^ws/, 'http').replace(/\/+$/, '');
-  const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   // On a static host with nothing configured, the page's own origin has no
   // board behind it and asking would only produce a console full of 404s.
-  if (!local && !DEFAULT_RELAY && !new URLSearchParams(location.search || '').get('relay')) {
+  if (!isLocal(location) && !DEFAULT_RELAY
+      && !new URLSearchParams(location.search || '').get('relay')) {
     return null;
   }
   return `${url}/highscores`;
