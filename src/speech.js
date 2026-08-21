@@ -43,6 +43,7 @@ const PHONEMES = {
   EY: { f: [530, 1840, 2480], to: [300, 2200, 2900], dur: 0.19 },
   OW: { f: [570, 840, 2410], to: [330, 800, 2300], dur: 0.19 },
   AY: { f: [730, 1090, 2440], to: [300, 2200, 2900], dur: 0.21 },
+  AW: { f: [730, 1090, 2440], to: [300, 870, 2240], dur: 0.21 },
   // Voiced continuants
   L: { f: [360, 1300, 2700], dur: 0.09 },
   R: { f: [420, 1300, 1600], dur: 0.09 },
@@ -60,6 +61,9 @@ const PHONEMES = {
   V: { f: [300, 1100, 2400], noise: 2400, q: 2, dur: 0.09, level: 0.6 },
   DH: { f: [300, 1400, 2500], noise: 3800, q: 2, dur: 0.07, level: 0.5 },
   Z: { f: [280, 1600, 2500], noise: 4600, q: 5, dur: 0.10, level: 0.6 },
+  // Affricates: a stop and a hiss run together, which is what "ch" and "j" are.
+  CH: { stop: 0.04, burst: 2600, q: 3, dur: 0.11, locus: [350, 1800, 2500] },
+  JH: { stop: 0.03, burst: 2400, q: 3, dur: 0.10, voiced: true, locus: [300, 1800, 2500] },
   // Plosives. `locus` is where the formants sit at the moment the mouth opens:
   // the vowel then slides away from there, and that slide is most of what tells
   // a "b" from a "d". Without it every stop sounds like the same click.

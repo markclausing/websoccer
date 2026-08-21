@@ -8,6 +8,12 @@ with a four-character room code.
 No dependencies, no build step. HTML, CSS and JavaScript exactly as the browser
 receives them.
 
+There is a second game on the same engine:
+[webtennis](https://github.com/markclausing/webtennis). Eleven files are shared
+between them byte for byte - the input mask, the netcode, the relay, the Worker,
+the high score table and the speech synthesiser - and `node tools/sync-shared.js`
+in that repository checks the two copies have not drifted apart.
+
 **[Play it here](https://markclausing.github.io/websoccer/)**
 
 ![A blue attack breaking into the red penalty area, the keeper off his line and defenders closing in, with the radar top right](docs/screenshots/gameplay.png)
