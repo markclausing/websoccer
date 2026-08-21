@@ -550,3 +550,82 @@ if (squads[0][0].shirt === squads[0][1].shirt) {
 console.log(`Skin tones: every team uses all ${SKIN_TONES.length}, and the two line up differently `
   + `(${sameSpot} of 11 shared)`);
 console.log('OK: a squad is eleven different people, and the keeper still stands out');
+
+// --- The high score table ----------------------------------------------------
+//
+// Pure logic, so it is checked here rather than in the browser: ordering, the
+// ten row cap, and above all merging, which is what lets two devices end up
+// with one board without either winning by being read second.
+
+const scores = await import('../src/highscores.js');
+
+const table = [];
+for (let i = 1; i <= 12; i++) {
+  table.push(scores.cleanEntry({
+    id: `e${i}`, name: `P${i}`, scored: i, conceded: 0, halfSeconds: 120, at: 1000 + i,
+  }));
+}
+const ranked = scores.sortTable(table);
+if (ranked.length !== scores.TABLE_SIZE) {
+  console.error(`FAIL: the table kept ${ranked.length} rows instead of ${scores.TABLE_SIZE}`);
+  process.exit(1);
+}
+if (ranked[0].scored !== 12 || ranked[9].scored !== 3) {
+  console.error(`FAIL: wrong order - top ${ranked[0].scored}, bottom ${ranked[9].scored}`);
+  process.exit(1);
+}
+if (scores.cleanEntry({ name: 'AAA', scored: 1, conceded: 3 }) !== null) {
+  console.error('FAIL: a defeat was accepted onto the board');
+  process.exit(1);
+}
+if (scores.cleanEntry({ name: 'AAA', scored: 'x', conceded: 0 }) !== null) {
+  console.error('FAIL: a nonsense score was accepted');
+  process.exit(1);
+}
+if (scores.cleanEntry({ name: 'a', scored: 2, conceded: 0 }).name !== 'A--') {
+  console.error('FAIL: short names are not padded out');
+  process.exit(1);
+}
+
+// Same result, arriving twice from two devices: one row, not two.
+const mine = { easy: [], normal: [table[0], table[1]], hard: [] };
+const theirs = { easy: [], normal: [table[1], table[2]], hard: [] };
+const merged = scores.merge(mine, theirs);
+if (merged.normal.length !== 3) {
+  console.error(`FAIL: merging two boards gave ${merged.normal.length} rows instead of 3`);
+  process.exit(1);
+}
+// Merging is order independent, or two devices would disagree about the board.
+const other = scores.merge(theirs, mine);
+if (JSON.stringify(merged) !== JSON.stringify(other)) {
+  console.error('FAIL: merging A into B differs from merging B into A');
+  process.exit(1);
+}
+// And doing it twice changes nothing.
+if (JSON.stringify(scores.merge(merged, theirs)) !== JSON.stringify(merged)) {
+  console.error('FAIL: merging the same board again changed it');
+  process.exit(1);
+}
+
+const memory = new Map();
+const board = new scores.Highscores({
+  getItem: (k) => (memory.has(k) ? memory.get(k) : null),
+  setItem: (k, v) => memory.set(k, v),
+});
+board.add('hard', { name: 'ABC', scored: 3, conceded: 1, halfSeconds: 120, at: 5000 });
+if (board.table('hard').length !== 1 || board.table('easy').length !== 0) {
+  console.error('FAIL: a score landed on the wrong difficulty');
+  process.exit(1);
+}
+memory.set(scores.KEY, '{ not json at all');
+const rebuilt = new scores.Highscores({
+  getItem: (k) => (memory.has(k) ? memory.get(k) : null),
+  setItem: (k, v) => memory.set(k, v),
+});
+if (rebuilt.table('hard').length !== 0) {
+  console.error('FAIL: a corrupt stored table did not come back empty');
+  process.exit(1);
+}
+console.log('');
+console.log('High scores: ten per difficulty, defeats refused, merging is order independent');
+console.log('OK: the table survives being merged, repeated and corrupted');

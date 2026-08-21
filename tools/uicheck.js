@@ -15,6 +15,7 @@ import { AudioEngine, Chiptune, Sfx, TRACK, noteFreq } from '../src/audio.js';
 import { TouchControls } from '../src/touch.js';
 import { BTN } from '../src/constants.js';
 import { lineupFrom, shapeOf } from '../src/game/formations.js';
+import { KEY as SCORES_KEY } from '../src/highscores.js';
 
 const PORT = 5196;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -195,6 +196,13 @@ function press(code) {
   }
 }
 
+/** A typed character, which is what the name picker listens for. */
+function type(key) {
+  for (const fn of listeners.get('keydown') || []) {
+    fn({ key, code: `Key${key}`, preventDefault: () => {}, stopPropagation: () => {} });
+  }
+}
+
 /** One display frame of the fake browser. */
 let clock = 0;
 function pumpFrame() {
@@ -371,6 +379,45 @@ async function main() {
     point(swap, 'pointerdown', 0, 0);
     if (!(controls.mask & BTN.SWITCH)) throw new Error('the switch button does not press');
     console.log('OK: on-screen stick and buttons produce the same input as the keyboard');
+
+    // 1c. Win a match and the three letter picker should appear, take the name
+    //     from the keyboard, and put the result on the board.
+    if (!game.state) click(el('start'));
+    pumpFrame();
+    game.state.score[0] = 5;
+    game.state.score[1] = 1;
+    game.state.phase = 'fulltime';
+    pumpFrame();
+    if (el('hiscore').classList.contains('hidden')) {
+      throw new Error('a 5-1 win did not offer a place on the high score table');
+    }
+    for (const letter of ['M', 'J', 'C']) type(letter);
+    type('Enter');
+    if (!el('hiscore').classList.contains('hidden')) {
+      throw new Error('the picker stayed up after the name was confirmed');
+    }
+    const saved = JSON.parse(store.get(SCORES_KEY) || '{}');
+    const top = saved.normal?.[0];
+    if (!top || top.name !== 'MJC' || top.scored !== 5 || top.conceded !== 1) {
+      throw new Error(`the result did not reach the table: ${JSON.stringify(top)}`);
+    }
+    if (!el('scoresBody').children.length) {
+      throw new Error('the menu table is empty after a score was set');
+    }
+    console.log(`OK: a 5-1 win asks for three letters and lands on the board as ${top.name}`);
+
+    // A defeat must not ask for anything.
+    click(el('start'));
+    game.state.score[0] = 0;
+    game.state.score[1] = 4;
+    game.state.phase = 'fulltime';
+    pumpFrame();
+    if (!el('hiscore').classList.contains('hidden')) {
+      throw new Error('a 0-4 defeat was offered a place on the table');
+    }
+    press('Enter');
+    pumpFrame();
+    console.log('OK: a defeat is not a high score');
 
     // 2. Online: pick the mode and open a match.
     click(modeButtons[2]);

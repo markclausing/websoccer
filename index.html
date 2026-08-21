@@ -116,6 +116,14 @@
           </p>
         </details>
 
+        <details id="scoresBox">
+          <summary>High scores <span id="scoresLevel" class="shape"></span></summary>
+          <table class="scores">
+            <tbody id="scoresBody"></tbody>
+          </table>
+          <p id="scoresNote" class="fineprint"></p>
+        </details>
+
         <p id="iosHint" class="fineprint hidden"></p>
 
         <div id="localSetup">
@@ -158,6 +166,18 @@
           <button id="start" class="primary">KICK OFF</button>
           <button id="host" class="primary hidden">OPEN A NEW MATCH</button>
         </div>
+      </div>
+    </div>
+
+    <div id="hiscore" class="overlay hidden">
+      <div class="panel small">
+        <h2>HIGH SCORE</h2>
+        <p id="hiscoreLine" class="status"></p>
+        <div id="hiscoreLetters" class="letters"></div>
+        <p class="fineprint">
+          Up and down for the letter, left and right to move along, kick to
+          confirm. Typing works too.
+        </p>
       </div>
     </div>
 

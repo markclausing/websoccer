@@ -418,6 +418,52 @@ details[open] .shape { color: #b9d6c0; }
   margin: 0;
 }
 
+/* --- High scores --------------------------------------------------------- */
+
+.scores {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 0;
+}
+
+.scores td {
+  padding: 3px 4px;
+  color: #b9d6c0;
+}
+
+.scores td.place { color: #7ea888; width: 2.2em; }
+.scores td.name { color: #ffe14d; letter-spacing: 2px; }
+.scores td.result { text-align: right; }
+.scores td.when { color: #7ea888; text-align: right; }
+.scores tr.fresh td { color: #ffffff; }
+
+.letters {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.letter {
+  display: block;
+  width: 1.4em;
+  padding: 6px 10px;
+  border: 2px solid #2f6b3f;
+  border-radius: 4px;
+  font-size: 34px;
+  text-align: center;
+  color: #b9d6c0;
+}
+
+.letter.on {
+  border-color: #ffe14d;
+  color: #ffe14d;
+  /* The slot you are on blinks, the way the cabinet did it. */
+  animation: blink 0.9s steps(2, start) infinite;
+}
+
+@keyframes blink { 50% { opacity: 0.35; } }
+
 /* Generic and deliberately last: .overlay and .row set their own display with
    the same specificity, so this only wins by coming after them. Without it
    nothing with class="hidden" was ever actually hidden - the online panel sat

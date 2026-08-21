@@ -1,4 +1,4 @@
-import { FRAME_TIME } from './constants.js';
+import { FRAME_TIME, TICK_RATE } from './constants.js';
 import {
   ACTIONS, ACTION_LABELS, InputDevices, PRESETS, findConflicts, keyLabel, loadBindings, saveBindings,
 } from './input.js';
@@ -7,6 +7,8 @@ import {
   DEFAULT_KEY, PRESETS as LINEUP_PRESETS, lineupFrom, presetFor, shapeOf,
 } from './game/formations.js';
 import { LineupEditor } from './lineupEditor.js';
+import { Highscores, placeOf } from './highscores.js';
+import { NameEntry } from './nameEntry.js';
 import { step } from './game/sim.js';
 import { Renderer } from './render/renderer.js';
 import { drawTitleScreen } from './render/titlescreen.js';
@@ -87,6 +89,9 @@ if (onTouchDevice) {
 }
 
 const renderer = new Renderer(canvas);
+
+const highscores = new Highscores();
+const hiscoreBox = document.getElementById('hiscore');
 
 const game = {
   state: null,
@@ -201,9 +206,112 @@ function frame(now) {
   renderer.draw(game.state, netInfo());
   checkNetEnd();
 
-  if (game.state.phase === 'fulltime' && devices.isDown('Enter') && !game.transport.online) {
-    toMenu();
+  if (game.state.phase === 'fulltime' && !game.transport.online) {
+    // The table comes first: pressing Enter to leave must not skip past the one
+    // moment you earned.
+    if (offerHighscore()) return;
+    if (devices.isDown('Enter')) toMenu();
   }
+}
+
+// --- High scores -------------------------------------------------------------
+
+const nameEntry = new NameEntry(document.getElementById('hiscoreLetters'), (name) => {
+  try {
+    globalThis.localStorage?.setItem('websoccer.name', name);
+  } catch { /* the name just will not stick */ }
+  const place = highscores.add(pending.difficulty, { ...pending.entry, name });
+  pending.freshId = pending.entry.id;
+  pending.open = false;
+  hiscoreBox.classList.add('hidden');
+  renderScores(pending.difficulty, place);
+  document.getElementById('scoresBox').open = true;
+  toMenu();
+});
+
+const pending = { open: false, entry: null, difficulty: 'normal', freshId: null };
+
+// Typing beats hunting for letters with the stick, so it is offered as well.
+// Captured before the key bindings see it: while the picker is up, the keyboard
+// belongs to the picker.
+window.addEventListener('keydown', (e) => {
+  if (!pending.open) return;
+  if (nameEntry.type(e.key)) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
+/**
+ * Called every frame once a local match is over. Puts the three letter picker
+ * up if the result earned a place, and drives it from the same input mask the
+ * match used, so the stick and the kick button work on a phone.
+ */
+function offerHighscore() {
+  if (pending.open) {
+    nameEntry.step(devices.mask(0));
+    return true;
+  }
+  // Two players on one keyboard, or an online match, are not a score anybody
+  // set on their own.
+  if (game.ended || game.transport.humanSlots?.length !== 1) return false;
+  game.ended = true; // whatever happens next, we only offer once
+
+  const entry = {
+    id: undefined,
+    name: lastName(),
+    scored: game.state.score[0],
+    conceded: game.state.score[1],
+    halfSeconds: Math.round(game.state.config.halfTicks / TICK_RATE),
+    at: Date.now(),
+  };
+  if (!highscores.qualifies(difficulty, entry)) return false;
+
+  const place = placeOf(highscores.table(difficulty), entry);
+  pending.entry = { ...entry, id: undefined };
+  pending.difficulty = difficulty;
+  pending.open = true;
+  document.getElementById('hiscoreLine').textContent
+    = `${game.state.score[0]} - ${game.state.score[1]} against ${difficulty.toUpperCase()}: number ${place}`;
+  hiscoreBox.classList.remove('hidden');
+  nameEntry.start(lastName());
+  return true;
+}
+
+function lastName() {
+  try {
+    return globalThis.localStorage?.getItem('websoccer.name') || 'AAA';
+  } catch {
+    return 'AAA';
+  }
+}
+
+function renderScores(level, freshPlace = 0) {
+  const body = document.getElementById('scoresBody');
+  document.getElementById('scoresLevel').textContent = level.toUpperCase();
+  body.innerHTML = '';
+  const rows = highscores.table(level);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const tr = document.createElement('tr');
+    if (i + 1 === freshPlace) tr.className = 'fresh';
+    const cells = [
+      ['place', `${i + 1}`],
+      ['name', row.name],
+      ['result', `${row.scored} - ${row.conceded}`],
+      ['when', new Date(row.at).toLocaleDateString()],
+    ];
+    for (const [cls, text] of cells) {
+      const td = document.createElement('td');
+      td.className = cls;
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+  document.getElementById('scoresNote').textContent = rows.length
+    ? 'Biggest win first. Beat the CPU to get on the board - a draw counts, a defeat does not.'
+    : 'Nothing here yet. Beat the CPU at this level and the board is yours.';
 }
 
 function netInfo() {
@@ -465,8 +573,11 @@ document.querySelectorAll('[data-difficulty]').forEach((btn) => {
   btn.addEventListener('click', () => {
     difficulty = btn.dataset.difficulty;
     document.querySelectorAll('[data-difficulty]').forEach((b) => b.classList.toggle('active', b === btn));
+    renderScores(difficulty);
   });
 });
+
+renderScores(difficulty);
 
 document.querySelectorAll('[data-mode]').forEach((btn) => {
   btn.addEventListener('click', () => {
