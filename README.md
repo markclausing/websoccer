@@ -432,15 +432,28 @@ gives you `ping`, `delay`, `stalls` and `desync`.
 
 ## What is not there yet
 
-- No fouls, free kicks, penalties or offside.
-- One formation (4-3-3) and two teams; no team selection or league yet.
+- No fouls, free kicks or penalties. A slide that takes the man and misses the
+  ball is simply a good tackle here, which is the single biggest thing the
+  referee is missing — offside he does call.
+- Two teams, BLUE and RED, and no league, cup or season around the match.
+  Line-ups can be changed, kits cannot.
+- The match is balanced around the 4-3-3 and it shows: every other shape opens
+  the game up and CPU against CPU the scorelines run away, because finishing is
+  too easy once a side gets through. See the note under **Line-ups**. Fixing that
+  is worth more than any new feature on this list.
 - The keeper is simple: he walks to the ball and hoofs it clear, he does not dive.
-- No commentary, no ambient crowd between the goals, no net ripple.
+- No commentary, no net ripple, and the crowd only reacts to goals — there is no
+  ambience in between.
+- Nobody checks that a high score is real. Anyone who can read `src/highscores.js`
+  can post a result they did not earn, and a board with no accounts on it cannot
+  tell the difference.
 - Online: no rematch button (back to the menu and start again), no reconnecting
   after a drop, and messages go over the wire as JSON. Around 4 kB/s per player —
   fine, but binary would be considerably leaner.
 - Everything runs through the relay server. WebRTC (peer to peer) would lower
   latency; the relay would still be needed to introduce the two players.
+- Discord only ever gets told about new entries. It cannot be asked anything,
+  which would need a real bot rather than a webhook.
 
 Fancy picking one of these up? [CONTRIBUTING.md](CONTRIBUTING.md) describes where
 to start per topic.

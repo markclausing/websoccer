@@ -57,18 +57,30 @@ always straight away — determinism bugs can be rare. So give it a thought.
 src/constants.js      dimensions, speeds, rule constants - start here if you
                       want to tune how the game feels
 src/util.js           maths + deterministic PRNG
-src/input.js          keyboard/gamepad -> 5-bit mask
+src/input.js          keyboard/gamepad -> 6-bit mask
+src/touch.js          on-screen stick and buttons -> the same mask
 src/main.js           menu, fixed-timestep game loop
-src/game/state.js     match state, formations, kickoff, clone + hash
+src/config.js         which relay this page talks to (the one line to fill in)
+src/audio.js          synthesised tune and match sounds
+src/highscores.js     the table: ordering, merging, storage
+src/nameEntry.js      the three letter picker
+src/lineupEditor.js   the pitch you drag your players around on
+src/game/state.js     match state, teams, kickoff, clone + hash
+src/game/formations.js line-ups, and the roles read off where a player stands
 src/game/sim.js       step(): the only place where the match changes
 src/game/ai.js        CPU logic
 src/game/kick.js      shared kick function for human and CPU
+src/game/aim.js       assisted aim for passes
+src/game/offside.js   the offside line, flag and whistle
 src/render/pitch.js   the pitch (drawn once onto an offscreen canvas)
+src/render/sprites.js the player, as pixel art, baked per kit and skin tone
+src/render/titlescreen.js the picture behind the menu
 src/render/renderer.js camera, players, ball, HUD, radar, network status
 src/net/signal.js     WebSocket client: rooms and message routing
 src/net/transport.js  LocalTransport and OnlineTransport (lockstep)
-server/relay.js       static files + rooms + passing inputs along
+server/relay.js       static files + rooms + inputs + the shared board
 server/ws.js          WebSocket protocol by hand
+worker/               the same relay as a Cloudflare Worker, plus Discord posts
 tools/                the tests
 ```
 
@@ -148,19 +160,33 @@ sides.
 The README closes with a list of "What is not there yet". The most obvious chunks
 of work:
 
-- **Fouls and free kicks.** There is no referee right now; slide tackles are
-  allowed to do anything. Penalties could decide matches too.
+- **Finishing, and the balance around it.** The most valuable thing on this list.
+  The match is tuned around the 4-3-3, and it turns out to be tuned by being
+  stuck: both sides playing it, the ball spends 93% of the match in the middle
+  third. Any other line-up opens the game up and the scorelines run away, because
+  a side that gets through scores almost every time. Marking was tried as a fix
+  and measurably made it worse. `tools/simtest.js` has the scenarios to measure
+  against — whole-match goal counts are useless here, they swing from a shutout
+  to twenty on a change of a hundredth.
+- **Fouls and free kicks.** There is no referee beyond the offside flag; a slide
+  that takes the man and misses the ball is simply a good tackle. Penalties could
+  decide matches too.
 - **The keeper.** He walks to the ball and hoofs it clear, and that is it. Diving,
   catching and positioning on the line are all wide open.
-- **Teams and formations.** There is one formation (4-3-3) and there are two
-  teams. Team selection, other formations or a league: all welcome.
+- **Teams.** Line-ups are yours to change, but there are two teams, BLUE and RED,
+  with fixed kits, and nothing around the match: no league, no cup, no season.
 - **A binary network protocol.** Inputs currently go over the wire as JSON, around
   4 kB/s per player. That could be ten times leaner.
 - **WebRTC.** Everything goes through the relay right now. Peer to peer would
   lower latency; the relay would still be needed to introduce the players.
 - **Rematch and reconnect.** After a match you have to go back to the menu, and a
   dropped connection is final.
-- **Sound.** There is none at all.
+- **A high score board that cannot be lied to.** Anyone who can read
+  `src/highscores.js` can post a result they never earned. Hard to solve without
+  accounts, and worth thinking about before it matters.
+- **Sound between the goals.** There is a tune, a whistle, a kick, a slide and a
+  crowd that roars at goals — but nothing in between, no commentary, no net
+  ripple.
 
 ## Licence
 
