@@ -15,6 +15,9 @@
  *
  * It will never be mistaken for a person, which is the idea. Keep the phrases
  * short: two or three words read clearly, a sentence turns to mush.
+ *
+ * Shared verbatim with webtennis: the words live in a separate file per game,
+ * and tools/sync-shared.js checks the two copies of this one have not drifted.
  */
 
 /**
@@ -70,92 +73,17 @@ const PHONEMES = {
   _: { silence: true, dur: 0.07 },
 };
 
-/**
- * The vocabulary, spelled the way it has to be pronounced rather than the way it
- * is written. There is no English spelling in here and there is not going to be:
- * a rule that turns "eight" into a long A is a rule with a hundred exceptions,
- * and this commentator only needs forty words.
- */
-export const WORDS = {
-  blue: ['B', 'L', 'UW'],
-  red: ['R', 'EH', 'D'],
-  nil: ['N', 'IH', 'L'],
-  one: ['W', 'AH', 'N'],
-  two: ['T', 'UW'],
-  three: ['TH', 'R', 'IY'],
-  four: ['F', 'AO', 'R'],
-  five: ['F', 'AY', 'V'],
-  six: ['S', 'IH', 'K', 'S'],
-  seven: ['S', 'EH', 'V', 'AH', 'N'],
-  eight: ['EY', 'T'],
-  nine: ['N', 'AY', 'N'],
-  ten: ['T', 'EH', 'N'],
-  eleven: ['IH', 'L', 'EH', 'V', 'AH', 'N'],
-  twelve: ['T', 'W', 'EH', 'L', 'V'],
-  a: ['AH'],
-  against: ['AH', 'G', 'EH', 'N', 'S', 'T'],
-  all: ['AO', 'L'],
-  and: ['AH', 'N', 'D'],
-  away: ['AH', 'W', 'EY'],
-  corner: ['K', 'AO', 'R', 'N', 'ER'],
-  for: ['F', 'AO', 'R'],
-  full: ['F', 'UH', 'L'],
-  go: ['G', 'OW'],
-  goal: ['G', 'OW', 'L'],
-  good: ['G', 'UH', 'D'],
-  great: ['G', 'R', 'EY', 'T'],
-  half: ['HH', 'AE', 'F'],
-  here: ['HH', 'IY', 'R'],
-  hes: ['HH', 'IY', 'Z'],
-  in: ['IH', 'N'],
-  its: ['IH', 'T', 'S'],
-  kick: ['K', 'IH', 'K'],
-  level: ['L', 'EH', 'V', 'AH', 'L'],
-  on: ['AA', 'N'],
-  run: ['R', 'AH', 'N'],
-  save: ['S', 'EY', 'V'],
-  saved: ['S', 'EY', 'V', 'D'],
-  thats: ['DH', 'AE', 'T', 'S'],
-  throw: ['TH', 'R', 'OW'],
-  time: ['T', 'AY', 'M'],
-  we: ['W', 'IY'],
-  what: ['W', 'AH', 'T'],
-};
-
-const NUMBERS = [
-  'nil', 'one', 'two', 'three', 'four', 'five', 'six',
-  'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
-];
-
-/** How a scoreline is read out: "blue two, red nil". */
-export function scoreWords(score) {
-  if (score[0] > 12 || score[1] > 12) return ''; // past twelve, say nothing
-  return `blue ${NUMBERS[score[0]]} red ${NUMBERS[score[1]]}`;
-}
-
 /** Words to phonemes, with a gap where the spaces are. */
-export function phrase(text) {
+export function phrase(text, words) {
   const out = [];
   for (const word of String(text).toLowerCase().split(/\s+/)) {
-    const sounds = WORDS[word];
+    const sounds = words[word];
     if (!sounds) continue; // a word he has not been taught is simply not said
     if (out.length) out.push('_');
     out.push(...sounds);
   }
   return out;
 }
-
-/**
- * What he says, and when. Short on purpose: two or three words read clearly,
- * a sentence turns to mush.
- */
-export const LINES = {
-  goal: ['goal', 'what a goal', 'its in'],
-  save: ['saved', 'what a save', 'great save'],
-  run: ['hes away', 'go on', 'what a run'],
-  start: ['blue against red', 'here we go'],
-  fulltime: ['thats full time', 'full time'],
-};
 
 /**
  * The voice.
@@ -226,8 +154,16 @@ const RATE = 1.18;
 const UNSTRESSED = 0.86;
 
 export class Speech {
-  constructor(engine) {
+  /**
+   * @param engine the shared AudioEngine.
+   * @param vocabulary `{ WORDS, LINES }` for whichever game this is. The
+   *   synthesiser has no opinion about either: one game says "throw in for red"
+   *   and another says "advantage", and none of that belongs in here.
+   */
+  constructor(engine, vocabulary = {}) {
     this.engine = engine;
+    this.words = vocabulary.WORDS || {};
+    this.lines = vocabulary.LINES || {};
     // Narrow formants pass less energy than wide ones, so this is louder than
     // it looks: measured, a line peaks at about a quarter of full scale.
     // Measured against the rest of the mix rather than guessed: at this level a
@@ -248,7 +184,7 @@ export class Speech {
    * worth keeping.
    */
   say(event, at = 0) {
-    const lines = LINES[event];
+    const lines = this.lines[event];
     if (!lines || !this.engine.ctx) return 0;
     const line = lines[this.pick % lines.length];
     this.pick++;
@@ -257,7 +193,7 @@ export class Speech {
 
   /** Says any sentence built from the vocabulary. */
   line(text, at = 0) {
-    const sounds = phrase(text);
+    const sounds = phrase(text, this.words);
     return sounds.length ? this.speak(sounds, at) : 0;
   }
 

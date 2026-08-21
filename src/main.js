@@ -17,6 +17,7 @@ import { LocalTransport, OnlineTransport } from './net/transport.js';
 import { Signal } from './net/signal.js';
 import { AudioEngine, Chiptune, Sfx } from './audio.js';
 import { Speech } from './speech.js';
+import * as commentary from './commentary.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 
 const canvas = document.getElementById('game');
@@ -31,7 +32,7 @@ const difficultyRow = document.getElementById('difficultyRow');
 
 const audio = new AudioEngine();
 const music = new Chiptune(audio);
-const speech = new Speech(audio);
+const speech = new Speech(audio, commentary);
 const sfx = new Sfx(audio, speech);
 sfx.talking = globalThis.localStorage?.getItem('websoccer.commentary') !== 'off';
 let soundOn = globalThis.localStorage?.getItem('websoccer.music') !== 'off';

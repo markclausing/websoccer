@@ -11,7 +11,7 @@
  * melody itself is written here, not copied from any of them.
  */
 
-import { scoreWords } from './speech.js';
+import { scoreWords } from './commentary.js';
 
 const BPM = 150;
 const STEP = 60 / BPM / 4; // one sixteenth note, in seconds

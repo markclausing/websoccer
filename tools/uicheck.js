@@ -12,7 +12,8 @@ import { step } from '../src/game/sim.js';
 import { Signal } from '../src/net/signal.js';
 import { OnlineTransport } from '../src/net/transport.js';
 import { AudioEngine, Chiptune, Sfx, TRACK, noteFreq } from '../src/audio.js';
-import { LINES, Speech } from '../src/speech.js';
+import { Speech } from '../src/speech.js';
+import * as commentary from '../src/commentary.js';
 import { TouchControls } from '../src/touch.js';
 import { BTN } from '../src/constants.js';
 import { lineupFrom, shapeOf } from '../src/game/formations.js';
@@ -363,7 +364,7 @@ async function main() {
     // filter moves rather than a sample: what can be checked here is that it
     // builds something, that it keeps quiet when it should, and that the gap
     // between lines holds.
-    const talker = new Sfx(engine, new Speech(engine));
+    const talker = new Sfx(engine, new Speech(engine, commentary));
     talker.talking = true;
     engine.ctx.currentTime += 30;
     const spoken = counted(() => talker.commentary('save'));
